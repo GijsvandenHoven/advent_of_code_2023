@@ -40,7 +40,7 @@ int main()
     const int BENCH_SLOW_ITER = 10'000;
 
     {
-        std::ifstream text("day_1/input.txt");
+        std::ifstream text("day_1/day1.txt");
 
         auto start = std::chrono::steady_clock::now();
         for (int x = 0; x < BENCH_ITER; ++x) {
@@ -54,7 +54,7 @@ int main()
         std::cout << "(" << BENCH_ITER << " iterations) v1 ns " << dur << ", avg = " << (static_cast<double>(dur) / BENCH_ITER) / 1'000'000.0 << "ms \n";
     }
     {
-        std::ifstream text("day_1/input.txt");
+        std::ifstream text("day_1/day1.txt");
         auto start = std::chrono::steady_clock::now();
         for (int x = 0; x < BENCH_ITER; ++x) {
             v2(text);
@@ -67,7 +67,7 @@ int main()
         std::cout <<  "(" << BENCH_ITER << " iterations) v2 ns " << dur << " avg = " << (static_cast<double>(dur) / BENCH_ITER) / 1'000'000.0 << "ms \n";
     }
     {
-        std::ifstream text("day_1/input.txt");
+        std::ifstream text("day_1/day1.txt");
         auto start = std::chrono::steady_clock::now();
         for (int x = 0; x < BENCH_SLOW_ITER; ++x) {
             v2_single_pass(text);

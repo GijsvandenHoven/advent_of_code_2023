@@ -4,6 +4,8 @@
 #include <iostream>
 #include <fstream>
 
+#include "Day.hpp"
+
 #define DAY 0
 #define FILE FILE_PATH(DAY)
 
