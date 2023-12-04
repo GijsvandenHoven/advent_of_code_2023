@@ -4,13 +4,17 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 #include <chrono>
 #include <functional>
+#include <any>
 
 #include "BenchStats.hpp"
 
 namespace chrono = std::chrono;
+
+using PrinterCallback = std::function<void(const char *)>;
 
 class Day {
 public:
@@ -29,41 +33,49 @@ public:
     virtual void v2(std::ifstream& text) = 0;
 
     template<typename T> void reportSolution(const T& s) {
-        std::cout << s << "\n";
+        solution_printer = [s](const char * prefix) {
+            std::cout << prefix << s << "\n";
+        };
     }
 
     void solve() {
-        std::cout << "v1: ";
-        v1(text);
-        resetStream();
-        std::cout << "v2: ";
-        v2(text);
-        resetStream();
+        {
+            v1(text);
+            solution_printer("v1: ");
+            reset();
+        }
+        {
+            v2(text);
+            solution_printer("v1: ");
+            reset();
+        }
     }
 
-    void benchmark(int sampleCount = 100'000, double reportEveryPct = 0.1) {
+    void benchmark(int sampleCount = 10'000, double reportEveryPct = 0.05) {
         const double stepSize = sampleCount * reportEveryPct;
         auto bench = [=](
-                std::function<void(std::ifstream&)> f,
+                const std::function<void(std::ifstream&)>& f,
                 BenchmarkStats& s,
                 const std::string& functionName
         ) {
             s.reset();
             s.reserve(sampleCount);
             double targetForReport = stepSize;
+            std::cout << "[" << functionName << "] Benchmark: ";
             for (int i = 0; i < sampleCount; ++i) {
                 auto start = chrono::steady_clock::now();
                 f(this->text);
                 auto end = chrono::steady_clock::now();
                 s.measurement(end - start);
-                this->resetStream();
+                this->reset();
 
                 if (i == static_cast<int>(targetForReport)) {
                     auto pct = static_cast<double>(i) / sampleCount;
-                    std::cout << "[" << functionName << "] Benchmark: " << (100 * pct) << "%\n";
+                    std::cout << (100 * pct) << "% ... ";
                     targetForReport += stepSize;
                 }
             }
+            std::cout << "\n";
         };
 
         auto f1 = [this](auto && t) { v1(std::forward<decltype(t)>(t)); };
@@ -71,7 +83,8 @@ public:
 
         BenchmarkStats v1_stats;
         BenchmarkStats v2_stats;
-        v1_stats.unit = std::chrono::microseconds{1};
+        v1_stats.unit = std::chrono::milliseconds{1};
+        v2_stats.unit = std::chrono::milliseconds{1};
 
         bench(f1, v1_stats, "v1");
         bench(f2, v2_stats, "v2");
@@ -83,10 +96,14 @@ public:
 private:
     std::ifstream text;
 
-    void resetStream() {
+    // Call to reset input stream as well as solution (output) stream.
+    void reset() {
         text.clear();
         text.seekg(0);
+        solution_printer = PrinterCallback{};
     }
+
+    PrinterCallback solution_printer;
 };
 
 

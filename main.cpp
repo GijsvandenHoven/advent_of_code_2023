@@ -3,12 +3,14 @@
 #include <map>
 
 #include "_template/placeholders.hpp"
+#include "day_4/day_4.hpp"
 #include "day_5/day_5.hpp"
 #include "day_6/day_6.hpp"
 
 enum class ExitCodes {
     OK = 0,
-    NO_INPUT = 1,
+    NO_INPUT = -1,
+    BAD_INPUT = -2,
 };
 
 std::map<int, std::function<std::unique_ptr<Day>()>> day_constructor_functions = {
@@ -40,19 +42,32 @@ std::map<int, std::function<std::unique_ptr<Day>()>> day_constructor_functions =
 };
 
 int main(int argc, char** argv) {
-    if (argc == 0) {
-        std::cout << "Require input: DayNumber\n";
+    if (argc < 2) {
+        std::cout << "Require input: [solve|bench] [dayNumber] (bench_sample_size)\n";
         return static_cast<int>(ExitCodes::NO_INPUT);
     }
 
-    std::cout << "RUNNING DAY " << argv[1] << "\n";
+    std::string mode = argv[1];
+    int day = std::stoi(argv[2]);
 
-    // looking up a day that does not exist will return in std::bad_function_call to be thrown.
+    // looking up a day that does not exist will cause std::bad_function_call to be thrown,
     // because operator[] creates a new default-initialized value if the key is not found.
-    int day = std::stoi(argv[1]);
+    // looking up a day that is not implemented will cause std::logic_error to be thrown,
+    // because you shouldn't do that.
     auto solver = day_constructor_functions[day]();
 
-    solver->solve();
+    if (mode == "solve") {
+        solver->solve();
+    } else if (mode == "bench") {
+        if (argc > 3) {
+            solver->benchmark(std::stoi(argv[3]));
+        } else {
+            solver->benchmark();
+        }
+    } else {
+        std::cout << "unknown mode '" << mode << "'\n";
+        return static_cast<int>(ExitCodes::BAD_INPUT);
+    }
 
     return static_cast<int>(ExitCodes::OK);
 }

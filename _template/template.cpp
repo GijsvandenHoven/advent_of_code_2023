@@ -1,6 +1,8 @@
-#include "../Day.hpp"
+#pragma once
 
-// copy-paste this into a day_x.cpp, modify the #define DAY and you are ready to go.
+#include <iostream>
+
+#include "../util/Day.hpp"
 
 #define CONCATENATE(x, y) x##y
 #define CLASS_DEF(D) class CONCATENATE(Day, D) : public Day

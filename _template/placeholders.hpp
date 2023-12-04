@@ -1,4 +1,4 @@
-#include "../Day.hpp"
+#include "../util/Day.hpp"
 #include <stdexcept>
 
 #define CONCATENATE(x, y) x##y
@@ -20,7 +20,7 @@ public: DEFAULT_CTOR_DEF(DAY)                       \
 PLACEHOLD(1)
 PLACEHOLD(2)
 PLACEHOLD(3)
-PLACEHOLD(4)
+//PLACEHOLD(4)
 //PLACEHOLD(5)
 //PLACEHOLD(6)
 PLACEHOLD(7)
