@@ -96,7 +96,7 @@ int v2::solve(std::ifstream& text) {
     int index = 0;
     std::for_each(cards.begin(), cards.end(), [&instancesOfCard, &index](auto& c) {
         int wins = c.n_wins();
-        for (int i = index+1; i < index+1 + wins; ++i) {
+        for (int i = index+1; i < index+1 + wins && i < instancesOfCard.size(); ++i) {
             instancesOfCard[i] += instancesOfCard[index];
         }
 
