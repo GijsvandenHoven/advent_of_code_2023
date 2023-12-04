@@ -15,6 +15,7 @@ namespace chrono = std::chrono;
 class Day {
 public:
     Day() = delete;
+    virtual ~Day() = default;
     explicit Day(int number) : Day("day_" + std::to_string(number) + "/day" + std::to_string(number) + ".txt") {}
 
     explicit Day(const std::string& inputFilePath) {
