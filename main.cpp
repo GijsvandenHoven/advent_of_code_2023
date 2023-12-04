@@ -50,6 +50,8 @@ int main(int argc, char** argv) {
     std::string mode = argv[1];
     int day = std::stoi(argv[2]);
 
+    std::cout << mode << " day " << day << "\n";
+
     // looking up a day that does not exist will cause std::bad_function_call to be thrown,
     // because operator[] creates a new default-initialized value if the key is not found.
     // looking up a day that is not implemented will cause std::logic_error to be thrown,
