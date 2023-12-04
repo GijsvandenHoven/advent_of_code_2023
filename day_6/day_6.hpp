@@ -1,6 +1,6 @@
-#include "../util/Day.hpp"
-
 #pragma once
+
+#include "../util/Day.hpp"
 
 #define CONCATENATE(x, y) x##y
 #define CLASS_DEF(D) class CONCATENATE(Day, D) : public Day
