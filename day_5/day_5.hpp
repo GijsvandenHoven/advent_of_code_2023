@@ -10,10 +10,19 @@
 
 #define DAY 5
 
+void assert(bool _, const std::string& why = "unspecified") { if (!_) throw std::logic_error(why); }
+
 struct Mapping {
     int64_t from; // this number
     int64_t to; // is mapped to this number
     int64_t reach; // and this offset from-to offset is repeated for the next {this number} values.
+
+    Mapping(const std::string& s) {
+        std::istringstream values(s); // I wonder if it is slow to create one of these objects.
+        values >> to >> from >> reach;
+
+        assert((!values.bad()) && values.eof(), "parse error with: " + s);
+    }
 };
 
 CLASS_DEF(DAY) {
@@ -31,7 +40,7 @@ public:
 
 private:
     void parseInput(std::ifstream& input) {
-        std::array<std::vector<std::string>, 8> inputs;
+        std::array<std::vector<std::string>, 8> inputs {};
         std::string line;
 
         int i = 0;
@@ -45,26 +54,23 @@ private:
             }
         }
 
-//        std::cout << "done with parse 1, how busted is it?\n";
-//        std::for_each(inputs.begin(), inputs.end(), [](auto& vec) {
-//            std::cout << "\tvec\n";
-//            std::for_each(vec.begin(), vec.end(), [](auto& str){
-//                std::cout << "\t\t" << str << "\n";
-//            });
-//        });
+        std::array<std::vector<Mapping>, 7> parsed_maps {};
+        int index = 0;
+        // for everything but the first vector.
+        std::for_each(inputs.begin() + 1, inputs.end(), [&index, &parsed_maps](auto& vec){
+            // first line is the 'name' which we will throw away, the rest should be our values.
+            assert(vec.size() >= 2, "Input parse problem");
+            // toss the first line, it's a string describing what it is, which we are hardcoding for.
+            std::for_each(vec.begin() + 1, vec.end(), [target = &parsed_maps[index]](auto& str){
+                Mapping m { str };
+                target->emplace_back(m);
+            });
+            index++;
+        });
 
-        auto& [
-            seeds,
-            seed_to_soil,
-            soil_to_fert,
-            fert_to_water,
-            water_to_light,
-            light_to_temp,
-            temp_to_hum,
-            hum_to_loc
-        ] = inputs;
-
-
+        // the first vector, 'seeds', should be exactly one line.
+        assert(inputs[0].size() == 1);
+        const std::string seed_values = inputs[0][0].substr(6); // "seeds: "
     }
 };
 
