@@ -10,6 +10,22 @@
 
 #define DAY 5
 
+class NumberMapper {
+    std::vector<std::function<int64_t(int64_t)>> remapping_sequence;
+public:
+    NumberMapper() = default;
+
+    int64_t remap(int64_t input) {
+        int64_t current = input;
+        std::for_each(remapping_sequence.begin(), remapping_sequence.end(), [&](auto& remapper) {
+            current = remapper(current);
+        });
+
+        return current;
+    }
+};
+
+
 void assert(bool _, const std::string& why = "unspecified") { if (!_) throw std::logic_error(why); }
 
 struct Mapping {
