@@ -89,7 +89,65 @@ public:
     }
 
     void v2(std::ifstream& input) override {
-        reportSolution(0);
+        parseInput(input);
+
+        std::istringstream seed_reader(seed_string_numbers);
+
+        std::vector<std::pair<int64_t, int64_t>> seed_groups;
+
+        int64_t start_seed;
+        int64_t seed_range;
+        while (seed_reader >> start_seed >> seed_range) {
+            seed_groups.emplace_back(start_seed, seed_range);
+        }
+
+        // big block of memory for each of the groups.
+        std::vector<std::vector<int64_t>> results;
+        std::for_each(seed_groups.begin(), seed_groups.end(), [&results](auto pair) {
+            results.emplace_back();
+            results.back().reserve(pair.second);
+        });
+        std::cout << "alloc over\n";
+
+        for (int i = 0; i < seed_groups.size(); ++i) {
+            auto& result_group = results[i];
+            auto& [seed, range] = seed_groups[i];
+
+            for (int64_t s = seed; s < seed + range; ++s) {
+                result_group.emplace_back(remapper.remap(s));
+            }
+        }
+
+        auto total = std::accumulate(results.begin(), results.end(), 0, [](auto& s, auto& v) { return s + v.size(); });
+        std::cout << "At the end of it all\n";
+        std::cout << "There are " << results.size() << " result vectors, representing " << total << " items \n";
+
+        int64_t lowest = std::numeric_limits<int64_t>::max();
+        for (int i = 0; i < results.size(); ++i) {
+            auto& group_results = results[i];
+            auto lowest_of_this = std::min_element(group_results.begin(), group_results.end());
+
+            if (*lowest_of_this < lowest) {
+                lowest = *lowest_of_this;
+            }
+        }
+
+        reportSolution(lowest);
+//        int iter_count = 0;
+//        for (auto& [seed, range] : seed_groups) {
+//            for (int64_t i = seed; i < seed + range; ++i) {
+//                int64_t result = remapper.remap(i);
+//
+//
+//                if (iter_count % 1'000'000 == 0) {
+//                    double ratio = static_cast<double>(iter_count) / work;
+//                    std::cout << (ratio * 100) << "%\n";
+//                }
+//                iter_count ++ ;
+//            }
+//        }
+//
+//        reportSolution(lowest);
     }
 
 private:
