@@ -93,15 +93,16 @@ public:
         std::cout << "v2: " << v2_stats << "\n";
     }
 
-private:
-    std::ifstream text;
-
-    // Call to reset input stream as well as solution (output) stream.
-    void reset() {
+protected:
+// Call to reset input stream as well as solution (output) stream.
+    virtual void reset() {
         text.clear();
         text.seekg(0);
         solution_printer = PrinterCallback{};
     }
+
+private:
+    std::ifstream text;
 
     PrinterCallback solution_printer;
 };

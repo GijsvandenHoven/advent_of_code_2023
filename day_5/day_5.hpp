@@ -10,35 +10,59 @@
 
 #define DAY 5
 
+// std::pair<bool, T> is the poor man's monad.
+using Monad = std::pair<bool, int64_t>;
+
+Monad Ok(int64_t v) { return std::make_pair(true, v); }
+Monad Fail() { return std::make_pair(false, 0xDEAD'BEEF'DEAD'BEEF); }
+
+using IntRemapper = std::function<Monad(int64_t)>;
+
+void assert(bool _, const std::string& why = "unspecified") { if (!_) throw std::logic_error(why); }
+
 class NumberMapper {
-    std::vector<std::function<int64_t(int64_t)>> remapping_sequence;
+    std::vector<IntRemapper> remapping_sequence;
 public:
     NumberMapper() = default;
 
     int64_t remap(int64_t input) {
         int64_t current = input;
         std::for_each(remapping_sequence.begin(), remapping_sequence.end(), [&](auto& remapper) {
-            current = remapper(current);
+            auto remap = remapper(current);
+            if (remap.first) {
+                current = remap.second;
+            }
         });
 
         return current;
     }
-};
 
+    void add_new_remapper(IntRemapper && f) {
+        remapping_sequence.emplace_back(f);
+    }
 
-void assert(bool _, const std::string& why = "unspecified") { if (!_) throw std::logic_error(why); }
+    /**
+     * given a function f, pops the function 'g' from the vector, and pushes a function h, such that h = f(g()).
+     */
+    void extend_last_remapper(const IntRemapper& f) {
+        assert(! remapping_sequence.empty(), "extending empty remapper.");
 
-struct Mapping {
-    int64_t from; // this number
-    int64_t to; // is mapped to this number
-    int64_t reach; // and this offset from-to offset is repeated for the next {this number} values.
+        IntRemapper& current = remapping_sequence.back();
 
-    explicit Mapping(const std::string& s) : from(-1), to(-1), reach(-1) {
-        std::istringstream values(s); // I wonder if it is slow to create one of these objects.
-        values >> to >> from >> reach;
+        // not so sure about ownership and lifetimes of these function objects, so I think it's safest to copy them.
+        IntRemapper composed = [f, current](int64_t val) -> Monad {
+            auto optionA = current(val);
+            auto optionB = f(val);
 
-        assert((!values.bad()) && values.eof(), "parse error with: " + s);
-        assert(from >= 0 && to >= 0 && reach >= 0, "illegal values from: " + s);
+            if (optionA.first) return optionA;
+            if (optionB.first) return optionB;
+
+            // Neither mapping covers this value, so it is simply not remapped.
+            return Fail();
+        };
+
+        remapping_sequence.pop_back();
+        remapping_sequence.emplace_back(std::move(composed));
     }
 };
 
@@ -48,7 +72,20 @@ public:
 
     void v1(std::ifstream& input) override {
         parseInput(input);
-        reportSolution(0);
+
+        std::istringstream seed_reader(seed_string_numbers);
+
+        int64_t seed;
+        int64_t lowest = std::numeric_limits<int64_t>::max();
+        while (seed_reader >> seed) {
+            int64_t result = remapper.remap(seed);
+
+            if (result < lowest) {
+                lowest = result;
+            }
+        }
+
+        reportSolution(lowest);
     }
 
     void v2(std::ifstream& input) override {
@@ -56,38 +93,78 @@ public:
     }
 
 private:
+    NumberMapper remapper;
+
+    std::string seed_string_numbers;
+
     void parseInput(std::ifstream& input) {
-        std::array<std::vector<std::string>, 8> inputs {};
         std::string line;
+        std::getline(input, line);
 
-        int i = 0;
-        std::vector<std::string> * currentVector = &(inputs[i]);
-        while (std::getline(input, line)) {
+        seed_string_numbers = line.substr(7); // skip past "seeds: "
+
+        // lambda to de-duplicate the reading from std::istringstream and std::ifstream.
+        auto read_three_int64 = [](std::basic_istream<char>& stream){
+            int64_t first = -1;
+            int64_t second = -1;
+            int64_t third = -1;
+
+            stream >> first >> second >> third;
+
+            assert((! stream.bad()) && first >= 0 && second >= 0 && third >= 0, "Input reading fail, expected 3 ints.");
+
+            stream.get(); // consume newline character (or gets EOF, but that's fine).
+
+            return std::make_tuple(first, second, third);
+        };
+
+        while(std::getline(input, line)) {
+            int64_t src_start, src_end, remap;
+
+            // either add_new or extend_last must be called on remapper.
+            // So we let the if/else branches assign to this lambda and call after the functor is constructed.
+            // This enables us to avoid duplication in the creation of the functor; otherwise we would have to do it in both branches of the if/else.
+            std::function<void(IntRemapper && functor)> add_or_compose;
+
             if (line.empty()) {
-                i++;
-                currentVector = &(inputs[i]); // this would never ever break. just don't put empty lines at the end of the file pls :)
-            } else {
-                currentVector->push_back(line);
+                // a blank line begins definition of a new mapping. The end of the file does not have a blank line.
+                std::getline(input, line); // consume the 'header' specifying a name that we do not care about. Input remappings are linear.
+
+                auto [dest, src, len] = read_three_int64(input);
+                src_start = src;
+                src_end = src + len - 1;
+                remap = dest - src;
+
+                add_or_compose = [this](auto && functor) {
+                    remapper.add_new_remapper(std::forward<decltype(functor)>(functor));
+                };
+
+            } else { // the line that was just extracted should contain 3 numbers.
+                std::istringstream line_reader(line);
+
+                auto [dest, src, len] = read_three_int64(line_reader);
+                src_start = src;
+                src_end = src + len - 1;
+                remap = dest - src;
+
+                add_or_compose = [this](auto && functor) {
+                    remapper.extend_last_remapper(functor);
+                };
             }
+
+            auto map_function = [src_start, src_end, remap](int64_t val) -> Monad {
+                if (val >= src_start && val <= src_end) return Ok(val + remap);
+
+                return Fail();
+            };
+
+            add_or_compose(map_function);
         }
+    }
 
-        std::array<std::vector<Mapping>, 7> parsed_maps {};
-        int index = 0;
-        // for everything but the first vector.
-        std::for_each(inputs.begin() + 1, inputs.end(), [&index, &parsed_maps](auto& vec){
-            // first line is the 'name' which we will throw away, the rest should be our values.
-            assert(vec.size() >= 2, "Input parse problem");
-            // toss the first line, it's a string describing what it is, which we are hardcoding for.
-            std::for_each(vec.begin() + 1, vec.end(), [target = &parsed_maps[index]](auto& str){
-                Mapping m { str };
-                target->emplace_back(m);
-            });
-            index++;
-        });
-
-        // the first vector, 'seeds', should be exactly one line.
-        assert(inputs[0].size() == 1);
-        const std::string seed_values = inputs[0][0].substr(6); // "seeds: "
+    void reset() override {
+        remapper = NumberMapper{};
+        Day::reset();
     }
 };
 
