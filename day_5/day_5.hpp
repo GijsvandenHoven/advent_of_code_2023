@@ -17,11 +17,12 @@ struct Mapping {
     int64_t to; // is mapped to this number
     int64_t reach; // and this offset from-to offset is repeated for the next {this number} values.
 
-    Mapping(const std::string& s) {
+    explicit Mapping(const std::string& s) : from(-1), to(-1), reach(-1) {
         std::istringstream values(s); // I wonder if it is slow to create one of these objects.
         values >> to >> from >> reach;
 
         assert((!values.bad()) && values.eof(), "parse error with: " + s);
+        assert(from >= 0 && to >= 0 && reach >= 0, "illegal values from: " + s);
     }
 };
 
