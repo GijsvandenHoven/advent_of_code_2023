@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <omp.h>
 
 #include "../util/Day.hpp"
 
@@ -109,26 +110,33 @@ public:
         });
         std::cout << "alloc over\n";
 
+#pragma omp parallel for schedule(dynamic) shared(seed_groups, results, std::cout) default(none)
         for (int i = 0; i < seed_groups.size(); ++i) {
             auto& result_group = results[i];
             auto& [seed, range] = seed_groups[i];
 
+            // std::osyncstream if I end up upgrading to c++20.
+            std::cout << "Thread id " << omp_get_thread_num() << " Shall cover index " << i << " Which has " << range << " Units of work.\n";
             for (int64_t s = seed; s < seed + range; ++s) {
                 result_group.emplace_back(remapper.remap(s));
             }
         }
 
-        auto total = std::accumulate(results.begin(), results.end(), 0, [](auto& s, auto& v) { return s + v.size(); });
+        auto total = std::accumulate(results.begin(), results.end(), 0, [](auto s, auto& v) { return s + v.size(); });
         std::cout << "At the end of it all\n";
         std::cout << "There are " << results.size() << " result vectors, representing " << total << " items \n";
 
         int64_t lowest = std::numeric_limits<int64_t>::max();
+#pragma omp parallel for schedule(dynamic) shared(results, lowest) default(none)
         for (int i = 0; i < results.size(); ++i) {
             auto& group_results = results[i];
             auto lowest_of_this = std::min_element(group_results.begin(), group_results.end());
 
-            if (*lowest_of_this < lowest) {
-                lowest = *lowest_of_this;
+#pragma omp critical(assign_min)
+            {
+                if (*lowest_of_this < lowest) {
+                    lowest = *lowest_of_this;
+                }
             }
         }
 

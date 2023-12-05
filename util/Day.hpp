@@ -9,10 +9,12 @@
 #include <chrono>
 #include <functional>
 #include <any>
+#include <filesystem>
 
 #include "BenchStats.hpp"
 
 namespace chrono = std::chrono;
+auto root = std::filesystem::path(R"(C:\Users\20173607\CLionProjects\advent_of_code_2023)").make_preferred();// todo unhardcode pls
 
 using PrinterCallback = std::function<void(const char *)>;
 
@@ -23,9 +25,10 @@ public:
     explicit Day(int number) : Day("day_" + std::to_string(number) + "/day" + std::to_string(number) + ".txt") {}
 
     explicit Day(const std::string& inputFilePath) {
-        text.open(inputFilePath);
+        auto p = std::filesystem::path(inputFilePath).make_preferred();
+        text.open(root / p);
         if (! text) {
-            throw std::invalid_argument(" could not read: " + inputFilePath);
+            throw std::invalid_argument(" could not read: " + (root/p).string());
         }
     }
 
@@ -53,7 +56,7 @@ public:
 
     void benchmark(int sampleCount = 10'000, double reportEveryPct = 0.05) {
         const double stepSize = sampleCount * reportEveryPct;
-        auto bench = [=](
+        auto bench = [=, this](
                 const std::function<void(std::ifstream&)>& f,
                 BenchmarkStats& s,
                 const std::string& functionName
