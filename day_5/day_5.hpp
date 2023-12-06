@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <omp.h>
+#include <syncstream>
 
 #include "../util/Day.hpp"
 
@@ -109,16 +110,22 @@ public:
             results.back().reserve(pair.second);
         });
         std::cout << "alloc over\n";
-
+// todo: static schedule on inner loop instead.
 #pragma omp parallel for schedule(dynamic) shared(seed_groups, results, std::cout) default(none)
         for (int i = 0; i < seed_groups.size(); ++i) {
             auto& result_group = results[i];
             auto& [seed, range] = seed_groups[i];
 
-            // std::osyncstream if I end up upgrading to c++20.
-            std::cout << "Thread id " << omp_get_thread_num() << " Shall cover index " << i << " Which has " << range << " Units of work.\n";
+            std::osyncstream(std::cout) << "Thread id " << omp_get_thread_num() << " Shall cover index " << i << " Which has " << range << " Units of work.\n";
+
+            int64_t iter_count = 0;
             for (int64_t s = seed; s < seed + range; ++s) {
                 result_group.emplace_back(remapper.remap(s));
+
+                if (iter_count % 1'000'000 == 0) {
+                    std::osyncstream(std::cout) << "Thread id " << omp_get_thread_num() << " reports progress " << iter_count << " / " << range << " (" << static_cast<double>(iter_count) / range << ")\n";
+                }
+                iter_count++;
             }
         }
 
@@ -127,10 +134,13 @@ public:
         std::cout << "There are " << results.size() << " result vectors, representing " << total << " items \n";
 
         int64_t lowest = std::numeric_limits<int64_t>::max();
-#pragma omp parallel for schedule(dynamic) shared(results, lowest) default(none)
+#pragma omp parallel for schedule(dynamic) shared(results, lowest, std::cout) default(none)
         for (int i = 0; i < results.size(); ++i) {
             auto& group_results = results[i];
+            std::osyncstream(std::cout) << "Thread id " << omp_get_thread_num() << " will min_element index " << i << ".\n";
             auto lowest_of_this = std::min_element(group_results.begin(), group_results.end());
+
+            std::osyncstream(std::cout) << "Thread id " << omp_get_thread_num() << " reports lowest " << *lowest_of_this << "\n";
 
 #pragma omp critical(assign_min)
             {
@@ -141,21 +151,6 @@ public:
         }
 
         reportSolution(lowest);
-//        int iter_count = 0;
-//        for (auto& [seed, range] : seed_groups) {
-//            for (int64_t i = seed; i < seed + range; ++i) {
-//                int64_t result = remapper.remap(i);
-//
-//
-//                if (iter_count % 1'000'000 == 0) {
-//                    double ratio = static_cast<double>(iter_count) / work;
-//                    std::cout << (ratio * 100) << "%\n";
-//                }
-//                iter_count ++ ;
-//            }
-//        }
-//
-//        reportSolution(lowest);
     }
 
 private:
