@@ -136,7 +136,10 @@ public:
         reportSolution(lowest);
     }
 
+#define SMART_SOLUTION true
+
     void v2(std::ifstream& input) override {
+#if SMART_SOLUTION
         parseAsProblem2(input);
 
         std::istringstream seed_reader(seed_string_numbers);
@@ -187,18 +190,19 @@ public:
                  * It has the same result as last time.
                  */
                 for (int i = 0; i < output.size(); ++i) { // convert a current output layer
-                    auto& input = output[i];
+                    auto input_range = output[i]; // must copy, not reference. output may be pushed to, re-allocating the vector, moving the memory.
                     bool was_remapped = false;
                     for (auto& remap : remap_vec) {
                         auto& [offset, range] = remap;
-                        RangeMonad result = input.intersect(range);
+                        RangeMonad result = input_range.intersect(range);
                         if (result.first) {
+                            was_remapped = true;
                             // push the remaining part(s) of the input range.
-                            if (result.second.start > input.start) { // left side of intersection
-                                output.push_back({input.start, result.second.start - 1});
+                            if (result.second.start > input_range.start) { // left side of intersection
+                                output.emplace_back(input_range.start, result.second.start - 1);
                             }
-                            if (result.second.end < input.end) { // right side of intersection
-                                output.push_back({result.second.end + 1, input.end});
+                            if (result.second.end < input_range.end) { // right side of intersection
+                                output.emplace_back(result.second.end + 1, input_range.end);
                             }
                             // push the intersected part after offsetting it accordingly.
                             result.second.offset(offset);
@@ -206,19 +210,17 @@ public:
                         }
                     }
                     if (! was_remapped) {
-                        new_output.push_back(input);
+                        new_output.push_back(input_range);
                     }
                 }
                 auto printVec = [](auto& v){ for(auto& x : v)std::cout<<x<<", "; };
-                std::cout << "remap "; printVec(output); std::cout << "\n";
                 // prune duplicate ranges produced by the inner procedure.
                 output.clear();
                 std::for_each(new_output.begin(), new_output.end(), [&output](const Range& r) {
-                    if (output.end() != std::find(output.begin(), output.end(), r)) {
+                    if (output.end() == std::find(output.begin(), output.end(), r)) {
                         output.push_back(r);
                     }
                 });
-                std::cout << "to "; printVec(output); std::cout << "\n";
             }
             // done all the remapping layers for one of the seed ranges. The ranges in 'output' represent what it broke down to.
             int64_t local_min = std::numeric_limits<int64_t>::max();
@@ -227,16 +229,13 @@ public:
                     local_min = outputRange.start;
                 }
             });
-            std::cout << "A seed group produced local min " << local_min << "\n";
             if (local_min < global_min) {
                 global_min = local_min;
             }
         }
 
         reportSolution(global_min);
-    }
-
-    [[maybe_unused]] void v2_old(std::ifstream& input) {
+#else
         parseInput(input);
 
         std::istringstream seed_reader(seed_string_numbers);
@@ -287,6 +286,7 @@ public:
         }
 
         reportSolution(global_min);
+#endif
     }
 
 private:
@@ -383,14 +383,15 @@ private:
 
         while (std::getline(text, line)) {
             if (line.empty()) { // new map introduced, let's make room for it. Assumes no double newlines or file end w/ newline.
-                mapping_ranges.push_back({});
+                mapping_ranges.emplace_back();
                 std::getline(text, line); // eat the line describing the name of the map.
                 continue;
             }
 
             // only works because the first getline in the loop is a blank line, UB otherwise. :).
             auto& last_range_container = mapping_ranges.back();
-            auto [dest, src, len] = read_three_int64(text);
+            std::istringstream s(line);
+            auto [dest, src, len] = read_three_int64(s);
 
             last_range_container.emplace_back(std::make_pair<int64_t, Range>(dest - src, {src, src + len - 1}));
         }
