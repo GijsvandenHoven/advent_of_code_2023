@@ -12,8 +12,11 @@
 
 #define DAY 5
 
+struct Range;
+
 // std::pair<bool, T> is the poor man's monad.
 using Monad = std::pair<bool, int64_t>;
+using RangeMonad = std::pair<bool, Range>;
 
 Monad Ok(int64_t v) { return std::make_pair(true, v); }
 Monad Fail() { return std::make_pair(false, 0xDEAD'BEEF'DEAD'BEEF); }
@@ -65,6 +68,33 @@ public:
 
         remapping_sequence.pop_back();
         remapping_sequence.emplace_back(std::move(composed));
+    }
+};
+
+struct Range { // ranges are inclusive on both ends.
+    int64_t start;
+    int64_t end;
+
+    Range() = delete;
+    Range(int64_t s, int64_t e) {
+        assert(s <= e, "Range must have end not greater than start. - " + std::to_string(s) + ", " + std::to_string(e));
+        start = s;
+        end = e;
+    }
+
+    [[nodiscard]] RangeMonad intersect(const Range& other) const {
+        // no overlap
+        if (other.end < start || other.start > end) return std::make_pair<bool, Range>(false, { 0, 0 });
+
+        // full overlap
+        if (other.start <= start && other.end >= end) return std::make_pair<bool, Range>(true, { start, end });
+        if (other.start >= start && other.end <= end) return std::make_pair<bool, Range>(true, { other.start, other.end });
+
+        // partial overlap.
+        if (other.start <= start) return std::make_pair<bool, Range>(true, { start, other.end });
+        if (other.end >= end) return std::make_pair<bool, Range>(true, { other.start, end });
+
+        throw std::logic_error( " Impossible case reached " );
     }
 };
 
