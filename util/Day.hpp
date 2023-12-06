@@ -49,7 +49,7 @@ public:
         }
         {
             v2(text);
-            solution_printer("v1: ");
+            solution_printer("v2: ");
             reset();
         }
     }

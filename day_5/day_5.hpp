@@ -96,7 +96,23 @@ struct Range { // ranges are inclusive on both ends.
 
         throw std::logic_error( " Impossible case reached " );
     }
+
+    void offset(int64_t offset) {
+        start += offset;
+        end += offset;
+
+        assert(start >= 0 && end >= 0, "Offset to negative");
+    }
 };
+
+bool operator==(const Range& a, const Range& b) {
+    return a.start == b.start && a.end == b.end;
+}
+
+std::ostream& operator<<(std::ostream& o, const Range& r) {
+    o << '(' << r.start << ", " << r.end << ')';
+    return o;
+}
 
 CLASS_DEF(DAY) {
 public:
@@ -121,6 +137,106 @@ public:
     }
 
     void v2(std::ifstream& input) override {
+        parseAsProblem2(input);
+
+        std::istringstream seed_reader(seed_string_numbers);
+
+        std::vector<Range> seed_groups;
+        {
+            int64_t start_seed;
+            int64_t seed_range;
+            while (seed_reader >> start_seed >> seed_range) {
+                Range r {start_seed, start_seed + seed_range - 1};
+                seed_groups.emplace_back(r);
+            }
+        }
+
+        // for every seed range, go 'down the layers' breaking up the range into possibly more ranges through intersect().
+        // this DFS appraoch does not take int account overlaps inevitably created by the seed ranges.
+        // To do that, a BFS approach must be done instead with a check for pruning duplicates/overlaps.
+        int64_t global_min = std::numeric_limits<int64_t>::max();
+        for (auto& seed_range : seed_groups) {
+            std::vector<Range> output { seed_range };
+            for (auto& remap_vec : mapping_ranges) { // foreach remapping layer
+                std::vector<Range> new_output;
+                /**
+                 * Example run: (1) vector element, input range 0-100 gets processed.
+                 * There exists remappings 0-25 and 50-100.
+                 * First intersect call produces (offset) range 0-25 and pushes 26-100.
+                 * Second intersect call produces (offset) range 50-100 and pushes 0-49.
+                 *
+                 * (next iteration of this loop)
+                 * 26-100 gets processed.
+                 * There exists remappings 0-25 and 50-100.
+                 * First intersect call produces nothing.
+                 * Second intersect call produces (offset) range 50-100 and pushes 26-49.
+                 *
+                 * (next iteration of this loop)
+                 * 0-49 gets processed.
+                 * There exists remappings 0-25 and 50-100.
+                 * First intersect call produces 0-25 and pushes 26-49.
+                 * Second intersect call produces nothing.
+                 *
+                 * (next iteration of this loop)
+                 * 26-49 gets processed
+                 * Both intersect calls produce nothing.
+                 * 26-49 is added to output without offset. (1:1 mapping of this segment).
+                 *
+                 * (next iteration of this loop)
+                 * 26-49 gets processed (it was pushed twice).
+                 * It has the same result as last time.
+                 */
+                for (int i = 0; i < output.size(); ++i) { // convert a current output layer
+                    auto& input = output[i];
+                    bool was_remapped = false;
+                    for (auto& remap : remap_vec) {
+                        auto& [offset, range] = remap;
+                        RangeMonad result = input.intersect(range);
+                        if (result.first) {
+                            // push the remaining part(s) of the input range.
+                            if (result.second.start > input.start) { // left side of intersection
+                                output.push_back({input.start, result.second.start - 1});
+                            }
+                            if (result.second.end < input.end) { // right side of intersection
+                                output.push_back({result.second.end + 1, input.end});
+                            }
+                            // push the intersected part after offsetting it accordingly.
+                            result.second.offset(offset);
+                            new_output.push_back(result.second);
+                        }
+                    }
+                    if (! was_remapped) {
+                        new_output.push_back(input);
+                    }
+                }
+                auto printVec = [](auto& v){ for(auto& x : v)std::cout<<x<<", "; };
+                std::cout << "remap "; printVec(output); std::cout << "\n";
+                // prune duplicate ranges produced by the inner procedure.
+                output.clear();
+                std::for_each(new_output.begin(), new_output.end(), [&output](const Range& r) {
+                    if (output.end() != std::find(output.begin(), output.end(), r)) {
+                        output.push_back(r);
+                    }
+                });
+                std::cout << "to "; printVec(output); std::cout << "\n";
+            }
+            // done all the remapping layers for one of the seed ranges. The ranges in 'output' represent what it broke down to.
+            int64_t local_min = std::numeric_limits<int64_t>::max();
+            std::for_each(output.begin(), output.end(), [&local_min](auto& outputRange) {
+                if (outputRange.start < local_min) {
+                    local_min = outputRange.start;
+                }
+            });
+            std::cout << "A seed group produced local min " << local_min << "\n";
+            if (local_min < global_min) {
+                global_min = local_min;
+            }
+        }
+
+        reportSolution(global_min);
+    }
+
+    [[maybe_unused]] void v2_old(std::ifstream& input) {
         parseInput(input);
 
         std::istringstream seed_reader(seed_string_numbers);
@@ -133,58 +249,50 @@ public:
             seed_groups.emplace_back(start_seed, seed_range);
         }
 
-        // big block of memory for each of the groups.
-        std::vector<std::vector<int64_t>> results;
-        std::for_each(seed_groups.begin(), seed_groups.end(), [&results](auto pair) {
-            results.emplace_back();
-            results.back().reserve(pair.second);
-        });
-        std::cout << "alloc over\n";
-// todo: static schedule on inner loop instead.
-#pragma omp parallel for schedule(dynamic) shared(seed_groups, results, std::cout) default(none)
+        std::vector<int64_t> results;
+
+        int64_t global_min = std::numeric_limits<int64_t>::max();
         for (int i = 0; i < seed_groups.size(); ++i) {
-            auto& result_group = results[i];
             auto& [seed, range] = seed_groups[i];
+            std::cout << "Alloc " << range << " Items. (" << (range * sizeof(int64_t)) / static_cast<double>(1 << 30) << " GiB)\n";
+            results.resize(range);
 
-            std::osyncstream(std::cout) << "Thread id " << omp_get_thread_num() << " Shall cover index " << i << " Which has " << range << " Units of work.\n";
+            std::cout << "Crunching " << range << " Items\n";
+            auto start = std::chrono::steady_clock::now();
 
-            int64_t iter_count = 0;
+#pragma omp parallel for schedule(static) shared(std::cout, seed, range, results) default(none)
             for (int64_t s = seed; s < seed + range; ++s) {
-                result_group.emplace_back(remapper.remap(s));
+                uint64_t remap_result = remapper.remap(s);
+                results[s-seed] = remap_result;
+            }
 
-                if (iter_count % 1'000'000 == 0) {
-                    std::osyncstream(std::cout) << "Thread id " << omp_get_thread_num() << " reports progress " << iter_count << " / " << range << " (" << static_cast<double>(iter_count) / range << ")\n";
+            auto duration = std::chrono::steady_clock::now() - start;
+            double sec = (duration.count() / 1'000'000'000.0);
+            std::cout << "The crunch took " << sec << " seconds: " << (range / sec) << " items per second\n";
+            std::cout << "Take local min of these items:\n";
+            int64_t local_min = std::numeric_limits<int64_t>::max();
+
+#pragma omp parallel for simd schedule(static) default(none) reduction(min:local_min) shared(results)
+            for (int j = 0; j < results.size(); ++j) {
+                if (results[j] < local_min) {
+                    local_min = results[j];
                 }
-                iter_count++;
+            }
+            std::cout << "\tLocal min is: " << local_min << "\n";
+            results.clear(); // technically redundant.
+
+            if (local_min < global_min) {
+                global_min = local_min;
             }
         }
 
-        auto total = std::accumulate(results.begin(), results.end(), 0, [](auto s, auto& v) { return s + v.size(); });
-        std::cout << "At the end of it all\n";
-        std::cout << "There are " << results.size() << " result vectors, representing " << total << " items \n";
-
-        int64_t lowest = std::numeric_limits<int64_t>::max();
-#pragma omp parallel for schedule(dynamic) shared(results, lowest, std::cout) default(none)
-        for (int i = 0; i < results.size(); ++i) {
-            auto& group_results = results[i];
-            std::osyncstream(std::cout) << "Thread id " << omp_get_thread_num() << " will min_element index " << i << ".\n";
-            auto lowest_of_this = std::min_element(group_results.begin(), group_results.end());
-
-            std::osyncstream(std::cout) << "Thread id " << omp_get_thread_num() << " reports lowest " << *lowest_of_this << "\n";
-
-#pragma omp critical(assign_min)
-            {
-                if (*lowest_of_this < lowest) {
-                    lowest = *lowest_of_this;
-                }
-            }
-        }
-
-        reportSolution(lowest);
+        reportSolution(global_min);
     }
 
 private:
-    NumberMapper remapper;
+    NumberMapper remapper; // problem 1 and old problem 2 solution
+
+    std::vector<std::vector<std::pair<int64_t, Range>>> mapping_ranges; // poroblem 2 solution.
 
     std::string seed_string_numbers;
 
@@ -253,10 +361,47 @@ private:
         }
     }
 
+    void parseAsProblem2(std::ifstream& text) {
+        std::string line;
+        std::getline(text, line);
+
+        seed_string_numbers = line.substr(7); // skip past "seeds: "
+
+        auto read_three_int64 = [](std::basic_istream<char>& stream){
+            int64_t first = -1;
+            int64_t second = -1;
+            int64_t third = -1;
+
+            stream >> first >> second >> third;
+
+            assert((! stream.bad()) && first >= 0 && second >= 0 && third >= 0, "Input reading fail, expected 3 ints.");
+
+            stream.get(); // consume newline character (or gets EOF, but that's fine).
+
+            return std::make_tuple(first, second, third);
+        };
+
+        while (std::getline(text, line)) {
+            if (line.empty()) { // new map introduced, let's make room for it. Assumes no double newlines or file end w/ newline.
+                mapping_ranges.push_back({});
+                std::getline(text, line); // eat the line describing the name of the map.
+                continue;
+            }
+
+            // only works because the first getline in the loop is a blank line, UB otherwise. :).
+            auto& last_range_container = mapping_ranges.back();
+            auto [dest, src, len] = read_three_int64(text);
+
+            last_range_container.emplace_back(std::make_pair<int64_t, Range>(dest - src, {src, src + len - 1}));
+        }
+    }
+
     void reset() override {
         remapper = NumberMapper{};
+        mapping_ranges.clear();
         Day::reset();
     }
+
 };
 
 #undef CONCATENATE
