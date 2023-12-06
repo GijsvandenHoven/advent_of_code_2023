@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
+// todo: cannot #include format, need g++ 13 or higher. currently on 11.
 
 using Time = std::chrono::steady_clock::duration;
 
@@ -36,22 +37,38 @@ private:
 
     [[nodiscard]] std::string format(const Time& value) const {
 
-        auto converted = value / unit; // e.g. nanos to millis, this results in division by 1 million.
-        auto extra = (value % unit).count(); // the stuff behind-the-comma of this division.
-        auto behind_comma = std::to_string(extra * 1000).substr(0, 3);
+        double time_units = static_cast<double>(value.count()) / static_cast<double>(unit.count());
 
         std::string unit_of_time;
+        const char* time_suffixes[4] = { "s", "ms", "us", "ns" }; // "μs"; // <<- encoding issue
+        int unit_index;
         if (unit / std::chrono::seconds{1} != 0) {
-            unit_of_time = "s";
+            unit_index = 0;
         } else if (unit / std::chrono::milliseconds{1} != 0) {
-            unit_of_time = "ms";
+            unit_index = 1;
         } else if (unit / std::chrono::microseconds{1} != 0) {
-            unit_of_time = "us"; // "μs"; // <<- encoding issue
+            unit_index = 2;
         } else {
-            unit_of_time = "ns";
+            unit_index = 3;
         }
 
-        return std::to_string(converted) + "." + behind_comma + " " + unit_of_time;
+        while (time_units < 1.0) {
+            unit_index = std::min(3, unit_index + 1);
+            time_units *= 1000;
+        }
+
+        unit_of_time = time_suffixes[unit_index];
+
+        if (unit_of_time == "s" && time_units >= 1000) {
+            std::string formatted = std::to_string(time_units);
+            auto dot_index = formatted.find('.');
+            return formatted.substr(0, dot_index) + " " + unit_of_time;
+        }
+
+        // no std::format on this compiler, so we must suffer.
+        std::string formatted = std::to_string(time_units).substr(0, 4);
+        if (formatted[3] == '.') formatted = formatted.substr(0, 3);
+        return formatted + " " + unit_of_time;
     }
 
     [[nodiscard]] const std::vector<Time>& get_sorted() const {
