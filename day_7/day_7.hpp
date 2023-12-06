@@ -8,7 +8,7 @@
 #define CLASS_DEF(D) class CONCATENATE(Day, D) : public Day
 #define DEFAULT_CTOR_DEF(D) CONCATENATE(Day, D) () : Day(D) {}
 
-#define DAY 0
+#define DAY 7
 
 CLASS_DEF(DAY) {
 public:
