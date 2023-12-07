@@ -7,7 +7,7 @@
 
 #define CONCATENATE(x, y) x##y
 #define CLASS_DEF(D) class CONCATENATE(Day, D) : public Day
-#define DEFAULT_CTOR_DEF(D) CONCATENATE(Day, D) () : Day(D) {}
+#define DEFAULT_CTOR_DEF(D) explicit CONCATENATE(Day, D) (const std::filesystem::path& p) : Day(D, p) {}
 
 #define DAY 6
 
@@ -145,5 +145,5 @@ private:
 
 #undef CONCATENATE
 #undef CLASS_DEF
-#undef CTOR_DEF
+#undef DEFAULT_CTOR_DEF
 #undef DAY

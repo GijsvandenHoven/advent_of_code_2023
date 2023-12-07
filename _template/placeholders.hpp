@@ -1,9 +1,10 @@
 #include "../util/Day.hpp"
 #include <stdexcept>
+#include <filesystem>
 
 #define CONCATENATE(x, y) x##y
 #define CLASS_DEF(D) class CONCATENATE(Day, D) : public Day
-#define DEFAULT_CTOR_DEF(D) CONCATENATE(Day, D) () : Day(D) {}
+#define DEFAULT_CTOR_DEF(D) explicit CONCATENATE(Day, D) (const std::filesystem::path& p) : Day(D, p) {}
 
 #define PLACEHOLD(DAY) CLASS_DEF(DAY) {             \
 public: DEFAULT_CTOR_DEF(DAY)                       \
@@ -23,8 +24,8 @@ public: DEFAULT_CTOR_DEF(DAY)                       \
 
 // to get main to compile. As classes for days get created, placeholders get commented out.
 
-PLACEHOLD(1)
-PLACEHOLD(2)
+//PLACEHOLD(1)
+//PLACEHOLD(2)
 //PLACEHOLD(3)
 //PLACEHOLD(4)
 //PLACEHOLD(5)
@@ -51,5 +52,5 @@ PLACEHOLD(25)
 
 #undef CONCATENATE
 #undef CLASS_DEF
-#undef CTOR_DEF
+#undef DEFAULT_CTOR_DEF
 #undef DAY

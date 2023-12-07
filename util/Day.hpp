@@ -13,7 +13,7 @@
 #include "BenchStats.hpp"
 
 namespace chrono = std::chrono;
-auto root = std::filesystem::path(R"(C:\Users\20173607\CLionProjects\advent_of_code_2023)").make_preferred();// todo unhardcode pls?
+// auto root = std::filesystem::path(R"(C:\Users\20173607\CLionProjects\advent_of_code_2023)").make_preferred();// todo unhardcode pls?
 
 using PrinterCallback = std::function<void(const char *)>;
 
@@ -21,9 +21,9 @@ class Day {
 public:
     Day() = delete;
     virtual ~Day() = default;
-    explicit Day(int number) : Day("day_" + std::to_string(number) + "/day" + std::to_string(number) + ".txt") {}
+    explicit Day(int number, const std::filesystem::path& root) : Day("day_" + std::to_string(number) + "/day" + std::to_string(number) + ".txt", root) {}
 
-    explicit Day(const std::string& inputFilePath) {
+    explicit Day(const std::string& inputFilePath, const std::filesystem::path& root) {
         auto p = std::filesystem::path(inputFilePath).make_preferred();
         text.open(root / p);
         if (! text) {
