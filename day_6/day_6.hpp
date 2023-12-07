@@ -15,8 +15,34 @@ CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
 
-    void v1(std::ifstream& input) override {
-        parseInput(input);
+    void parse(std::ifstream& input) override {
+        int c;
+        while((c = input.get()) != EOF && c != ':')
+            ;
+
+        {
+            int n;
+            while (input >> n) {
+                race_times.push_back(n);
+            }
+            input.clear();
+        }
+
+        while((c = input.get()) != EOF && c != ':')
+            ;
+
+        {
+            int n;
+            while (input >> n) {
+                race_distances.push_back(n);
+            }
+            input.clear();
+        }
+
+        if (race_distances.size() != race_times.size()) throw std::logic_error("Race and Dist number vectors should have equal size");
+    }
+
+    void v1() const override {
 
         std::vector<int> wins_per_game;
         wins_per_game.reserve(race_distances.size());
@@ -36,8 +62,7 @@ public:
         reportSolution(product);
     }
 
-    void v2(std::ifstream& input) override {
-        parseInput(input);
+    void v2() const override {
 
         auto kerning = [](auto& vec) {
             int64_t kerned = 0;
@@ -112,11 +137,9 @@ private:
         if (race_distances.size() != race_times.size()) throw std::logic_error("Race and Dist number vectors should have equal size");
     }
 
-    void reset() override {
+    void parseBenchReset() override {
         race_times.clear();
         race_distances.clear();
-
-        Day::reset();
     }
 };
 
