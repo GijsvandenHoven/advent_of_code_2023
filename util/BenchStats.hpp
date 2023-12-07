@@ -28,64 +28,9 @@ using Time = std::chrono::steady_clock::duration;
  * Data is sorted only once, unless more is added after a demand for sorting through measurement().
  */
 class BenchmarkStats {
-
-    friend std::ostream& operator<<(std::ostream& o, const BenchmarkStats& b);
-
-private:
-    std::vector<Time> all; // aligned 'temporally', i.e. earliest first, appended by measure();
-    std::vector<Time> sorted; // only created if required by function calls. Transparently maintained. Do not use other than through get_sorted().
-
-    [[nodiscard]] std::string format(const Time& value) const {
-
-        double time_units = static_cast<double>(value.count()) / static_cast<double>(unit.count());
-
-        std::string unit_of_time;
-        const char* time_suffixes[4] = { "s", "ms", "us", "ns" }; // "μs"; // <<- encoding issue
-        int unit_index;
-        if (unit / std::chrono::seconds{1} != 0) {
-            unit_index = 0;
-        } else if (unit / std::chrono::milliseconds{1} != 0) {
-            unit_index = 1;
-        } else if (unit / std::chrono::microseconds{1} != 0) {
-            unit_index = 2;
-        } else {
-            unit_index = 3;
-        }
-
-        while (time_units < 1.0) {
-            unit_index = std::min(3, unit_index + 1);
-            time_units *= 1000;
-        }
-
-        unit_of_time = time_suffixes[unit_index];
-
-        if (unit_of_time == "s" && time_units >= 1000) {
-            std::string formatted = std::to_string(time_units);
-            auto dot_index = formatted.find('.');
-            return formatted.substr(0, dot_index) + " " + unit_of_time;
-        }
-
-        // no std::format on this compiler, so we must suffer.
-        std::string formatted = std::to_string(time_units).substr(0, 4);
-        if (formatted[3] == '.') formatted = formatted.substr(0, 3);
-        return formatted + " " + unit_of_time;
-    }
-
-    [[nodiscard]] const std::vector<Time>& get_sorted() const {
-        /** Bad To the Bone Riff */
-        auto sorted_ptr = const_cast<std::vector<Time>*>(&sorted);
-        /** It's rule-breaking time */
-        if (all.size() > sorted.size()) { // because the class is append-only, this is the only way a sort could be invalidated.
-            *sorted_ptr = all;
-            std::sort(sorted_ptr->begin(), sorted_ptr->end());
-        }
-
-        return sorted;
-    }
-
 public:
-    // controls unit printed in operator<<. Change by assigning e.g. std::chrono::milliseconds{1}.
-    Time unit{1};
+    BenchmarkStats() : unit(1) { }
+    explicit BenchmarkStats(const Time& representation_unit) : unit(representation_unit) { }
 
     void measurement(Time t) {
         all.push_back(t);
@@ -138,6 +83,71 @@ public:
     // assumes 0 < ile < 1
     [[nodiscard]] Time nth_ile(double ile) const {
         return get_sorted()[static_cast<int>(n_samples() * ile)]; // NOLINT(cppcoreguidelines-narrowing-conversions) -- if you have 2^53 measurements you have bigger problems.
+    }
+
+private:
+    friend std::ostream& operator<<(std::ostream& o, const BenchmarkStats& b);
+
+    Time unit; // controls unit printed in operator<<. Change by assigning e.g. std::chrono::milliseconds{1}.
+    std::vector<Time> all; // aligned 'temporally', i.e. earliest first, appended by measure();
+    std::vector<Time> sorted; // only created if required by function calls. Transparently maintained. Do not use other than through get_sorted().
+
+    [[nodiscard]] const std::vector<Time>& get_sorted() const {
+        /** Bad To the Bone Riff */
+        auto sorted_ptr = const_cast<std::vector<Time>*>(&sorted);
+        /** It's rule-breaking time */
+        if (all.size() > sorted.size()) { // because the class is append-only, this is the only way a sort could be invalidated.
+            *sorted_ptr = all;
+            std::sort(sorted_ptr->begin(), sorted_ptr->end());
+        }
+
+        return sorted;
+    }
+
+    // absolute mess of code, it keeps breaking I hate this.
+    [[nodiscard]] std::string format(const Time& value) const {
+
+        double time_units = static_cast<double>(value.count()) / static_cast<double>(unit.count());
+
+        std::string unit_of_time;
+        const char* time_suffixes[4] = { "s", "ms", "us", "ns" }; // "μs"; // <<- encoding issue
+        int unit_index;
+        if (unit / std::chrono::seconds{1} != 0) {
+            unit_index = 0;
+        } else if (unit / std::chrono::milliseconds{1} != 0) {
+            unit_index = 1;
+        } else if (unit / std::chrono::microseconds{1} != 0) {
+            unit_index = 2;
+        } else {
+            unit_index = 3;
+        }
+
+        if (time_units < 1.0) {
+            // handles using smaller units if the time was smaller than the expected unit.
+            while (time_units < 1.0) {
+                unit_index = std::min(3, unit_index + 1);
+                time_units *= 1000;
+            }
+        } else if (time_units >= 1000.0) {
+            // handles using bigger units if the time was larger than the expected unit.
+            while (time_units > 1000.0) {
+                unit_index = std::max(0, unit_index - 1);
+                time_units /= 1000;
+            }
+        }
+
+        unit_of_time = time_suffixes[unit_index];
+
+        if (unit_of_time == "s" && time_units >= 1000) {
+            std::string formatted = std::to_string(time_units);
+            auto dot_index = formatted.find('.');
+            return formatted.substr(0, dot_index) + " " + unit_of_time;
+        }
+
+        // no std::format on this compiler, so we must suffer.
+        std::string formatted = std::to_string(time_units).substr(0, 4);
+        if (formatted[3] == '.') formatted = formatted.substr(0, 3);
+        return formatted + " " + unit_of_time;
     }
 };
 

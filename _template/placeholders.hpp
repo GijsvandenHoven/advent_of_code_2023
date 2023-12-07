@@ -10,6 +10,9 @@ public: DEFAULT_CTOR_DEF(DAY)                       \
     void parse(std::ifstream&) override {           \
         throw std::runtime_error("Not Implemented");\
     }                                               \
+    void parseBenchReset() override {               \
+        throw std::runtime_error("Not implemented");\
+    }                                               \
     void v1() const override {                      \
         throw std::runtime_error("Not Implemented");\
     }                                               \

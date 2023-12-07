@@ -34,6 +34,7 @@ public:
     virtual void v1() const = 0;
     virtual void v2() const = 0;
     virtual void parse(std::ifstream& text) = 0;
+    virtual void parseBenchReset() = 0;
 
     template<typename T> void reportSolution(const T& s) const {
         // We are mutating solution_printer, despite const-ness. This is to let the solution be conditionally printed.
@@ -87,16 +88,29 @@ public:
         auto f1 = [this]() { v1(); };
         auto f2 = [this]() { v2(); };
 
-        BenchmarkStats parse_stats;
-        BenchmarkStats v1_stats;
-        BenchmarkStats v2_stats;
-        v1_stats.unit = std::chrono::milliseconds{1};
-        v2_stats.unit = std::chrono::milliseconds{1};
+        BenchmarkStats parse_stats(std::chrono::nanoseconds{1});
+        BenchmarkStats v1_stats(std::chrono::milliseconds{1});
+        BenchmarkStats v2_stats(std::chrono::milliseconds{1});
 
-        bench(f0, parse_stats, "parse", [this]() { text.clear(); text.seekg(0); });
-        bench(f1, v1_stats, "v1", [this](){ solution_printer = {}; });
-        bench(f2, v2_stats, "v2", [this](){ solution_printer = {}; });
+        auto resetSolver = [this](){ solution_printer = {}; };
+        auto resetParser = [this](){
+            text.clear();
+            text.seekg(0);
+            parseBenchReset(); // resets derived class structs that were parsed into memory.
+        };
 
+        {
+            bench(f0, parse_stats, "parse", resetParser);
+        }
+        {
+            // before benchmarking these solvers, parse the text. They need it, or they operate on empty data.
+            // Due to immutability, this has to be done only once.
+            parse(text);
+            bench(f1, v1_stats, "v1", resetSolver);
+            bench(f2, v2_stats, "v2", resetSolver);
+        }
+
+        std::cout << "parse: " << parse_stats << "\n";
         std::cout << "v1: " << v1_stats << "\n";
         std::cout << "v2: " << v2_stats << "\n";
     }
