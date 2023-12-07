@@ -14,29 +14,23 @@ CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
 
-    void v1(std::ifstream& input) override {
-        parseInput(input);
+    void parse(std::ifstream& input) override {
 
+    }
 
+    void v1() const override {
         reportSolution(0);
     }
 
-    void v2(std::ifstream& input) override {
-        parseInput(input);
-
-
+    void v2() const override {
         reportSolution(0);
+    }
+
+    void parseBenchReset() override {
+
     }
 
 private:
-    void parseInput(std::ifstream& input) {
-
-    }
-
-    void reset() override {
-
-        Day::reset();
-    }
 };
 
 #undef CONCATENATE

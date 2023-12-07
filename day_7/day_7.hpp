@@ -24,12 +24,14 @@ enum class HandType : int8_t {
 constexpr int JOKER_VALUE = 1;
 
 struct Hand {
-    int wager = 0;
-    std::array<int8_t, 5> cards {};
+    int wager;
+    std::array<int8_t, 5> cards;
     HandType power;
 
-    Hand() = delete;
-    explicit Hand(const std::string& input, bool use_jokers) { // will hilariously break if a non-single-digit or TJQKA card exists.
+    Hand() { ; } // NOLINT(cppcoreguidelines-pro-type-member-init) -- intentionally uninitiliazed. We want this when we copy from one vector to the other.
+
+    explicit Hand(const std::string& input, bool use_jokers) : wager(0), cards({}) {
+        // will hilariously break if a non-single-digit or TJQKA card exists.
         std::istringstream scanner(input);
 
         auto char_to_card_value = [use_jokers](int c) -> int8_t {
@@ -131,62 +133,64 @@ bool operator<(const Hand& a, const Hand& b) {
 std::ostream& operator<<(std::ostream& os, const Hand& h) {
     os  << "Hand {\n\t"
         << "cards: "
-            << static_cast<int>(h.cards[0]) << ", "
-            << static_cast<int>(h.cards[1]) << ", "
-            << static_cast<int>(h.cards[2]) << ", "
-            << static_cast<int>(h.cards[3]) << ", "
-            << static_cast<int>(h.cards[4]) << "\n\t" // ¯\_(ツ)_/¯
+        << static_cast<int>(h.cards[0]) << ", "
+        << static_cast<int>(h.cards[1]) << ", "
+        << static_cast<int>(h.cards[2]) << ", "
+        << static_cast<int>(h.cards[3]) << ", "
+        << static_cast<int>(h.cards[4]) << "\n\t" // ¯\_(ツ)_/¯
         << "wager: " << h.wager << "\n\t"
         << "type: " << static_cast<int>(h.power) << "\n}";
     return os;
 }
 
+
 CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
 
-    // If we sort the hands based on a custom operator< we can get ther rank of each.
-    void v1(std::ifstream& input) override {
-        parseInput(input, false);
-
-        solveProblem();
+    void parse(std::ifstream& input) override {
+        std::string line;
+        while (std::getline(input, line)) {
+            Hand h(line, false);
+            hands_1.emplace_back(h);
+        }
+        input.clear();
+        input.seekg(0);
+        while (std::getline(input, line)) {
+            Hand h(line, true);
+            hands_2.emplace_back(h);
+        }
     }
 
-    void v2(std::ifstream& input) override {
-        parseInput(input, true);
-
-        solveProblem();
+    void v1() const override {
+        solveProblem(hands_1);
     }
 
-    void solveProblem() {
-        std::sort(hands.begin(), hands.end());
+    void v2() const override {
+        solveProblem(hands_2);
+    }
 
-        // std::for_each(hands.begin(), hands.end(), [](auto& c) {std::cout <<c << "\n\n";});
+    // copies the vector so that it can be sorted. It sucks there is no std::sort that creates a new vector.
+    void solveProblem(const std::vector<Hand>& hands) const {
+        std::vector<Hand> sorted_hands(hands.size());
+        std::partial_sort_copy(hands.begin(), hands.end(), sorted_hands.begin(), sorted_hands.end());
 
         int rank_counter = 1;
         auto accumulator = [&rank_counter](int64_t s, const Hand& c) -> int64_t {
             return s + (rank_counter++) * c.wager;
         };
-        int64_t rank_times_wager = std::accumulate(hands.begin(), hands.end(), 0LL, accumulator);
-
+        int64_t rank_times_wager = std::accumulate(sorted_hands.begin(), sorted_hands.end(), 0LL, accumulator);
         reportSolution(rank_times_wager);
     }
 
+    void parseBenchReset() override {
+        hands_1.clear();
+        hands_2.clear();
+    }
+
 private:
-    std::vector<Hand> hands;
-
-    void parseInput(std::ifstream& input, bool use_jokers) {
-        std::string line;
-        while (std::getline(input, line)) {
-            Hand h(line, use_jokers);
-            hands.emplace_back(h);
-        }
-    }
-
-    void reset() override {
-        hands.clear();
-        Day::reset();
-    }
+    std::vector<Hand> hands_1;
+    std::vector<Hand> hands_2;
 };
 
 #undef CONCATENATE

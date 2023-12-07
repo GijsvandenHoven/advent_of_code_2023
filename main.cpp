@@ -6,7 +6,7 @@
 //#include "day_4/day_4.hpp"
 //#include "day_5/day_5.hpp"
 //#include "day_6/day_6.hpp"
-//#include "day_7/day_7.hpp"
+#include "day_7/day_7.hpp"
 #include "day_8/day_8.hpp"
 
 enum class ExitCodes {
