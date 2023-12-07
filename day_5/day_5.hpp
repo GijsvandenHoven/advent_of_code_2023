@@ -30,7 +30,7 @@ class NumberMapper {
 public:
     NumberMapper() = default;
 
-    int64_t remap(int64_t input) {
+    int64_t remap(int64_t input) const {
         int64_t current = input;
         std::for_each(remapping_sequence.begin(), remapping_sequence.end(), [&](auto& remapper) {
             auto remap = remapper(current);
@@ -118,8 +118,16 @@ CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
 
-    void v1(std::ifstream& input) override {
+    void parse(std::ifstream& input) override {
+        // Janky due to retroactively applying the new, immutable-during-solving template.
+        // the 2 parse functions do not have overlap, other than re-assigning seed_numbers a string, which is harmless.
         parseInput(input);
+        input.clear();
+        input.seekg(0);
+        parseAsProblem2(input);
+    }
+
+    void v1() const override {
 
         std::istringstream seed_reader(seed_string_numbers);
 
@@ -138,9 +146,8 @@ public:
 
 #define SMART_SOLUTION true
 
-    void v2(std::ifstream& input) override {
+    void v2() const override {
 #if SMART_SOLUTION
-        parseAsProblem2(input);
 
         std::istringstream seed_reader(seed_string_numbers);
 
@@ -292,7 +299,7 @@ public:
 private:
     NumberMapper remapper; // problem 1 and old problem 2 solution
 
-    std::vector<std::vector<std::pair<int64_t, Range>>> mapping_ranges; // poroblem 2 solution.
+    std::vector<std::vector<std::pair<int64_t, Range>>> mapping_ranges; // problem 2 solution.
 
     std::string seed_string_numbers;
 
@@ -397,10 +404,9 @@ private:
         }
     }
 
-    void reset() override {
-        remapper = NumberMapper{};
+    void parseBenchReset() override {
         mapping_ranges.clear();
-        Day::reset();
+        remapper = NumberMapper{};
     }
 
 };
