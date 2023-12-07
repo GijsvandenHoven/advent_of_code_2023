@@ -51,10 +51,10 @@ struct Hand {
         for (auto& card : cards) {
             card = char_to_card_value(scanner.get());
 
-            if (use_jokers && card == JOKER_VALUE) { // a joker can be anything, so increment every card...
+            if (card == JOKER_VALUE) { // a joker can be anything, so increment every card...
                 for (auto& bucket : buckets) { bucket++; }
             } else {
-                buckets[card]++; // careful with that index!
+                buckets[card]++;
             }
         }
         // assign wager, do this after card reading as the scanner needs to be past the card description!
@@ -81,7 +81,6 @@ struct Hand {
 
 private:
     static HandType MaybeFullHouse(const std::array<int, 6> &counts, const std::array<int, 15> &buckets) {
-
         // If there is no 2 pair or multiple 3 pair (jokers can cause this), it's just 3 of a kind.
         if (counts[2] == 0 && counts[3] < 2) {
             return HandType::THREE_KIND;
@@ -98,7 +97,6 @@ private:
     }
 
     static HandType MaybeTwoPair(const std::array<int, 6> &counts, const std::array<int, 15> &buckets) {
-
         if (counts[2] < 2) { // if there's no 2 pairs even with jokers, it's just not two pairs.
             return HandType::ONE_PAIR;
         }
