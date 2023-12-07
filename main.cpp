@@ -3,6 +3,7 @@
 #include <map>
 
 #include "_template/placeholders.hpp"
+#include "day_3/day_3.hpp"
 #include "day_4/day_4.hpp"
 #include "day_5/day_5.hpp"
 #include "day_6/day_6.hpp"
