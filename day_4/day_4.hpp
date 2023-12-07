@@ -1,13 +1,6 @@
-// created retroactively to test the new templates. Duplicate of day_4_better.cpp
-
 #pragma once
 
 #include <iostream>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <numeric>
-#include <algorithm>
 
 #include "../util/Day.hpp"
 
@@ -18,8 +11,9 @@
 #define DAY 4
 
 /**
- * This is made because while 4 works, its obviously better to parse the input into structs first.
- * This solution is a proof of concept of this, it should show off less code, which is more readable and structured better too.
+ * Retroactively added to this template, used to be a lone int main() file.
+ * Before the 'new template' was made, there was also a second solution to improve on the original,
+ * which is contained in the function bodies as seen here.
  */
 
 struct ScratchCard {
@@ -69,10 +63,15 @@ CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
 
-    void v1(std::ifstream& input) override {
-        std::vector<ScratchCard> cards;
-        parseIntoVector(input, cards);
+    void parse(std::ifstream& input) override {
+        std::string line;
+        while (std::getline(input, line)) {
+            ScratchCard c(line);
+            cards.push_back(c);
+        }
+    }
 
+    void v1() const override {
         int totalScore = std::accumulate(cards.begin(), cards.end(), 0, [](int sum, auto& c){
             return sum + c.score();
         });
@@ -80,10 +79,7 @@ public:
         reportSolution(totalScore);
     }
 
-    void v2(std::ifstream& input) override {
-        std::vector<ScratchCard> cards;
-        parseIntoVector(input, cards);
-
+    void v2() const override {
         std::vector<int> instancesOfCard;
         instancesOfCard.resize(cards.size(), 1);
         int index = 0;
@@ -100,14 +96,12 @@ public:
         reportSolution(sum);
     }
 
-private:
-    static void parseIntoVector(std::ifstream &in, std::vector<ScratchCard> &out) {
-        std::string line;
-        while (std::getline(in, line)) {
-            ScratchCard c(line);
-            out.push_back(c);
-        }
+    void parseBenchReset() override {
+        cards.clear();
     }
+
+private:
+    std::vector<ScratchCard> cards;
 };
 
 #undef CONCATENATE
