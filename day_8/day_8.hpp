@@ -21,10 +21,6 @@ class Instructions {
     std::istringstream instructionScanner;
 public:
 
-    int pos() {
-        return static_cast<int>(instructionScanner.tellg());
-    }
-
     Direction getDirection() {
         int c = instructionScanner.get();
 
@@ -196,76 +192,31 @@ public:
     void v2() const override {
 
         std::vector<const NetworkNode *> starts;
-        std::vector<const NetworkNode *> ends;
         network.get_nodes_ending_with('A', starts);
-        network.get_nodes_ending_with('Z', ends);
 
-        std::vector<std::pair<int64_t, int64_t>> cycleValues; // first and last reported cycle.
-        for (auto start : starts) {
+        // This solution assumes that nodes immediately start on their cycle,
+        // And that a cycle is as simple as possible: just one Z node per cycle.
+        // This enables us to compute the LCM of all cycles.
+        // A more general solution exists (LCM computation in linear time),
+        // For when there is a 'tail' of nodes before a cycle is entered.
+        // At commit 4c3c25a027f1759cabaeb6ac372d042bdcfbc4bf.
+        // Even more general solutions (Multiple Z nodes per cycle) were not made.
+        int64_t cycles_lcm;
+        {
+            int first_node_cycle_count = 0;
+            Instructions i(instructions_string);
+            findNextZ(i, starts[0], first_node_cycle_count);
+            cycles_lcm = first_node_cycle_count;
+        }
+
+        for (auto iter = starts.begin() + 1; iter != starts.end(); ++iter) {
             int steps_taken = 0;
-            std::vector<std::tuple<int, std::string, int>> z_node_hits;
-            Instructions instructions(instructions_string); // create fresh each time, mutating this between nodes is a bad idea.
-            auto node = start;
-
-            bool cycleFound = false;
-            while (! cycleFound) {
-                node = findNextZ(instructions, node, steps_taken);
-                int instruction_pos = instructions.pos();
-
-                auto predicate = [&instruction_pos, &node](auto& item) {
-                    return instruction_pos == std::get<0>(item) && node->label == std::get<1>(item);
-                };
-
-                // always add it, even if it's a 'duplicate' as per the predicate,
-                // we want at least 2 in the vec for cycle calculation with an 'offset' (although if there is an offset, we cannot LCM)
-                z_node_hits.emplace_back(instructions.pos(), node->label, steps_taken);
-
-                if (z_node_hits.end() != std::find_if(z_node_hits.begin(), z_node_hits.end(), predicate)) {
-                    cycleFound = true;
-                }
-            }
-
-            // Check for funny business, not part of the puzzle input but...
-            if (z_node_hits.size() != 2) {
-                int diff = std::get<2>(z_node_hits[1]) - std::get<2>(z_node_hits[0]);
-                int prev = 0;
-                for (auto& [a, b, c] : z_node_hits) {
-                    if (prev != 0 && c - prev != diff) {
-                        throw std::logic_error("Can't solve this: Only works for predictable cycles such that some form of LCM can be used.");
-                    }
-                    prev = c;
-                }
-            }
-
-            // znodehits has at least 2 members due to how the cycle seeker works.
-            cycleValues.emplace_back( std::get<2>(z_node_hits[0]), std::get<2>(z_node_hits.back()) );
+            Instructions i(instructions_string);
+            findNextZ(i, *iter, steps_taken);
+            cycles_lcm = std::lcm(cycles_lcm, steps_taken);
         }
 
-        bool hasOffset = false;
-        for (auto& [first, last] : cycleValues) {
-            auto x = first / last;
-            auto y = static_cast<double>(first) / static_cast<double>(last);
-            if (static_cast<double>(x) != y) {
-                hasOffset = true;
-            }
-        }
-
-        int64_t result;
-        if (hasOffset) {
-            result = stupid_lcm(cycleValues);
-        } else {
-            bool _1 = true;
-            for (auto& [first, _] : cycleValues) {
-                if (_1) {
-                    result = first;
-                    _1 = false;
-                } else {
-                    result = std::lcm(result, first);
-                }
-            }
-        }
-
-        reportSolution(result);
+        reportSolution(cycles_lcm);
     }
 
     void parseBenchReset() override {
@@ -292,45 +243,6 @@ private:
         } while (current->label.back() != 'Z');
 
         return current;
-    }
-
-    static int64_t stupid_lcm(const std::vector<std::pair<int64_t, int64_t>>& cycleValues) {
-        std::cout << "Warn: LCM will be computed in linear time, presumably due to presence of offsets.\n";
-        std::vector<int64_t> counts;
-        std::vector<int64_t> sizes;
-        std::cout << "WE ARE WORKING WITH THIS:\n";
-        for (auto& [start, end] : cycleValues) {
-            std::cout << "S: " << start << ", E: " << end << ", thus C: " << (end - start) << "\n";
-            counts.push_back(start);
-            sizes.push_back(end-start);
-        }
-
-        int at = 0;
-        uint32_t iter = 0; // intentionally 32 byte, we want to report every power of 2 and this overflowing keeps reporting a bit more frequent.
-        while ( counts.back() != counts[0] ) {
-            iter++;
-            auto& a = counts[at];
-            auto& b = counts[at+1];
-
-            if (a == b) {
-                // std::cout << "@" << at << ": " << a << " == " << b << "\n";
-                at++;
-            } else if (a > b) {
-                b += sizes[at+1];
-                at = 0; // invalidated, check again
-            } else { // a < b
-                a += sizes[at];
-                at = 0;
-            }
-
-            if ((iter & (iter - 1)) == 0) {
-                std::cout << iter << " - ";
-                for (auto v : counts) std::cout << v << ", ";
-                std::cout << "\n";
-            }
-        }
-
-        return counts[0];
     }
 };
 
