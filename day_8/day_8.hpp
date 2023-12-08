@@ -18,23 +18,24 @@ enum class Direction : bool {
 };
 
 class Instructions {
-    std::vector<Direction> directions;
-    size_t currentDirection = 0;
+    std::istringstream instructionScanner;
 public:
 
     Direction getDirection() {
-        auto direction = directions[currentDirection];
-        currentDirection = (currentDirection + 1) % directions.size();
-        return direction;
+        if (instructionScanner.eof()) { // It's rewind time!
+            instructionScanner.clear();
+            instructionScanner.seekg(0);
+        }
+
+        char dir = static_cast<char>(instructionScanner.get());
+        return dir == 'L' ? Direction::LEFT : Direction::RIGHT;
     }
 
     explicit Instructions(const std::string& from) {
-        for (auto c : from) {
-            directions.push_back(c == 'L' ? Direction::LEFT : Direction::RIGHT);
-        }
+        instructionScanner.str(from);
     }
 
-    explicit Instructions() = default;
+    explicit Instructions() = delete;
 };
 
 class NetworkNode {
@@ -78,6 +79,18 @@ public:
     void add_node(NetworkNodePtr&& node) {
         network.emplace(node->label, node);
     }
+
+    [[nodiscard]] NetworkNodePtr get_node(const std::string& lbl) const {
+        auto iter = std::find_if(network.begin(), network.end(), [&lbl](auto& kvp) {
+            return kvp.first == lbl;
+        });
+
+        if (iter == network.end()) {
+            throw std::logic_error("Label " + lbl + " Was requested, but not present in the Network.");
+        }
+
+        return iter->second;
+    }
 };
 
 std::ostream& operator<<(std::ostream& os, const Network& n) {
@@ -96,7 +109,7 @@ public:
     void parse(std::ifstream& input) override {
         std::string line;
         std::getline(input, line);
-        instructions = Instructions(line);
+        instructions_string = line;
 
         std::getline(input, line); // blank line
 
@@ -142,7 +155,27 @@ public:
     }
 
     void v1() const override {
-        reportSolution(0);
+        Instructions instructions(instructions_string);
+
+        int stepCount = 0;
+        NetworkNodePtr current = network.get_node("AAA");
+        while (current->label != "ZZZ") {
+            auto direction = instructions.getDirection();
+            switch(direction) {
+                case Direction::LEFT:
+                    current = current->left();
+                    break;
+                case Direction::RIGHT:
+                    current = current->right();
+                    break;
+                default:
+                    throw std::logic_error("Literally how, this enum is a bool.");
+            }
+
+            stepCount ++;
+        }
+
+        reportSolution(stepCount);
     }
 
     void v2() const override {
@@ -150,12 +183,12 @@ public:
     }
 
     void parseBenchReset() override {
-        instructions = Instructions();
+        instructions_string.clear();
         network = Network();
     }
 
 private:
-    Instructions instructions;
+    std::string instructions_string;
     Network network;
 };
 
