@@ -61,12 +61,12 @@ public:
         }
     }
 
-    [[nodiscard]] NetworkNodePtr left() const {
-        return left_;
+    [[nodiscard]] const NetworkNode * left() const {
+        return left_.get();
     }
 
-    [[nodiscard]] NetworkNodePtr right() const {
-        return right_;
+    [[nodiscard]] const NetworkNode * right() const {
+        return right_.get();
     }
 
     void set_left(NetworkNodePtr l) {
@@ -87,7 +87,7 @@ public:
         network.emplace(node->label, node);
     }
 
-    [[nodiscard]] NetworkNodePtr get_node(const std::string& lbl) const {
+    [[nodiscard]] const NetworkNode * get_node(const std::string& lbl) const {
         auto iter = std::find_if(network.begin(), network.end(), [&lbl](auto& kvp) {
             return kvp.first == lbl;
         });
@@ -96,7 +96,7 @@ public:
             throw std::logic_error("Label " + lbl + " Was requested, but not present in the Network.");
         }
 
-        return iter->second;
+        return iter->second.get();
     }
 };
 
@@ -162,7 +162,7 @@ public:
         Instructions instructions(instructions_string);
 
         int stepCount = 0;
-        NetworkNodePtr current = network.get_node("AAA");
+        auto* current = network.get_node("AAA");
         while (current->label != "ZZZ") {
             auto direction = instructions.getDirection();
             switch(direction) {
@@ -183,6 +183,7 @@ public:
     }
 
     void v2() const override {
+
         reportSolution(0);
     }
 
