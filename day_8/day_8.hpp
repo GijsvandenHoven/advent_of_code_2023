@@ -22,13 +22,20 @@ class Instructions {
 public:
 
     Direction getDirection() {
-        if (instructionScanner.eof()) { // It's rewind time!
+        int c = instructionScanner.get();
+
+        if (c == EOF) { // It's rewind time!
             instructionScanner.clear();
             instructionScanner.seekg(0);
+            c = instructionScanner.get();
         }
 
-        char dir = static_cast<char>(instructionScanner.get());
-        return dir == 'L' ? Direction::LEFT : Direction::RIGHT;
+        switch(c) {
+            case 'L': return Direction::LEFT;
+            case 'R': return Direction::RIGHT;
+            default:
+                throw std::logic_error(std::string("Illegal char in directions ") + static_cast<char>(c));
+        }
     }
 
     explicit Instructions(const std::string& from) {
@@ -149,9 +156,6 @@ public:
             nodelet.first->validate();
             network.add_node(std::move(nodelet.first));
         });
-
-        std::cout << "PARSE COMPLETE, RESULT: \n";
-        std::cout << network << "\n";
     }
 
     void v1() const override {
