@@ -1,10 +1,7 @@
 #include "../util/Day.hpp"
 #include <stdexcept>
 #include <filesystem>
-
-#define CONCATENATE(x, y) x##y
-#define CLASS_DEF(D) class CONCATENATE(Day, D) : public Day
-#define DEFAULT_CTOR_DEF(D) CONCATENATE(Day, D) () : Day(D) {}
+#include "../util/macros.hpp"
 
 #define PLACEHOLD(DAY) CLASS_DEF(DAY) {             \
 public: DEFAULT_CTOR_DEF(DAY)                       \
@@ -49,8 +46,3 @@ PLACEHOLD(22)
 PLACEHOLD(23)
 PLACEHOLD(24)
 PLACEHOLD(25)
-
-#undef CONCATENATE
-#undef CLASS_DEF
-#undef DEFAULT_CTOR_DEF
-#undef DAY

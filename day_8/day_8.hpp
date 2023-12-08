@@ -3,10 +3,7 @@
 #include <iostream>
 
 #include "../util/Day.hpp"
-
-#define CONCATENATE(x, y) x##y
-#define CLASS_DEF(D) class CONCATENATE(Day, D) : public Day
-#define DEFAULT_CTOR_DEF(D) CONCATENATE(Day, D) () : Day(D) {}
+#include "../util/macros.hpp"
 
 #define DAY 8
 
@@ -33,7 +30,4 @@ public:
 private:
 };
 
-#undef CONCATENATE
-#undef CLASS_DEF
-#undef DEFAULT_CTOR_DEF
 #undef DAY
