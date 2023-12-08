@@ -151,7 +151,7 @@ private:
     }
 };
 
-std::ostream& operator<<(std::ostream& o, const BenchmarkStats& b) {
+inline std::ostream& operator<<(std::ostream& o, const BenchmarkStats& b) {
     o
     << "BenchStats {" << "\n"
     << "\tSample Size: " << b.n_samples() << "\n"

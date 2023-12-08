@@ -18,32 +18,32 @@ enum class ExitCodes {
     BAD_INPUT = -2,
 };
 
-std::map<int, std::function<std::unique_ptr<Day>(const char *)>> day_constructor_functions = {
-        { 1, [](const char * c){ return std::make_unique<Day1>(c); } },
-        { 2, [](const char * c){ return std::make_unique<Day2>(c); } },
-        { 3, [](const char * c){ return std::make_unique<Day3>(c); } },
-        { 4, [](const char * c){ return std::make_unique<Day4>(c); } },
-        { 5, [](const char * c){ return std::make_unique<Day5>(c); } },
-        { 6, [](const char * c){ return std::make_unique<Day6>(c); } },
-        { 7, [](const char * c){ return std::make_unique<Day7>(c); } },
-//        { 8, [](const char * c){ return std::make_unique<Day8>(c); } },
-//        { 9, [](const char * c){ return std::make_unique<Day9>(c); } },
-//        { 10,[](const char * c){ return std::make_unique<Day10>(c); } },
-//        { 11,[](const char * c){ return std::make_unique<Day11>(c); } },
-//        { 12,[](const char * c){ return std::make_unique<Day12>(c); } },
-//        { 13,[](const char * c){ return std::make_unique<Day13>(c); } },
-//        { 14,[](const char * c){ return std::make_unique<Day14>(c); } },
-//        { 15,[](const char * c){ return std::make_unique<Day15>(c); } },
-//        { 16,[](const char * c){ return std::make_unique<Day16>(c); } },
-//        { 17,[](const char * c){ return std::make_unique<Day17>(c); } },
-//        { 18,[](const char * c){ return std::make_unique<Day18>(c); } },
-//        { 19,[](const char * c){ return std::make_unique<Day19>(c); } },
-//        { 20,[](const char * c){ return std::make_unique<Day20>(c); } },
-//        { 21,[](const char * c){ return std::make_unique<Day21>(c); } },
-//        { 22,[](const char * c){ return std::make_unique<Day22>(c); } },
-//        { 23,[](const char * c){ return std::make_unique<Day23>(c); } },
-//        { 24,[](const char * c){ return std::make_unique<Day24>(c); } },
-//        { 25,[](const char * c){ return std::make_unique<Day25>(c); } },
+std::map<int, std::function<std::unique_ptr<Day>()>> day_constructor_functions = {
+        { 1, [](){ return std::make_unique<Day1>(); } },
+        { 2, [](){ return std::make_unique<Day2>(); } },
+        { 3, [](){ return std::make_unique<Day3>(); } },
+        { 4, [](){ return std::make_unique<Day4>(); } },
+        { 5, [](){ return std::make_unique<Day5>(); } },
+        { 6, [](){ return std::make_unique<Day6>(); } },
+        { 7, [](){ return std::make_unique<Day7>(); } },
+        { 8, [](){ return std::make_unique<Day8>(); } },
+        { 9, [](){ return std::make_unique<Day9>(); } },
+        { 10,[](){ return std::make_unique<Day10>(); } },
+        { 11,[](){ return std::make_unique<Day11>(); } },
+        { 12,[](){ return std::make_unique<Day12>(); } },
+        { 13,[](){ return std::make_unique<Day13>(); } },
+        { 14,[](){ return std::make_unique<Day14>(); } },
+        { 15,[](){ return std::make_unique<Day15>(); } },
+        { 16,[](){ return std::make_unique<Day16>(); } },
+        { 17,[](){ return std::make_unique<Day17>(); } },
+        { 18,[](){ return std::make_unique<Day18>(); } },
+        { 19,[](){ return std::make_unique<Day19>(); } },
+        { 20,[](){ return std::make_unique<Day20>(); } },
+        { 21,[](){ return std::make_unique<Day21>(); } },
+        { 22,[](){ return std::make_unique<Day22>(); } },
+        { 23,[](){ return std::make_unique<Day23>(); } },
+        { 24,[](){ return std::make_unique<Day24>(); } },
+        { 25,[](){ return std::make_unique<Day25>(); } },
 };
 
 int main(int argc, char** argv) {
@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
         return static_cast<int>(ExitCodes::NO_INPUT);
     }
 
-    // Day::setRoot(argv[1]);
+    Day::setRoot(argv[1]);
     std::string mode = argv[2];
     int day = std::stoi(argv[3]);
 
@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
     // because operator[] creates a new default-initialized value if the key is not found.
     // looking up a day that is not implemented will cause std::logic_error to be thrown,
     // because you shouldn't do that.
-    auto solver = day_constructor_functions[day](argv[1]);
+    auto solver = day_constructor_functions[day]();
 
     if (mode == "solve") {
         solver->solve();
