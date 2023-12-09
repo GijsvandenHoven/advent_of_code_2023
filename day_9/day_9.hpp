@@ -84,20 +84,37 @@ public:
     }
 
     void v1() const override {
-        int64_t result = 0;
+        int64_t result_c = 0;
+        int64_t result_lazy_1 = 0;
+        int64_t result_lazy_2 = 0;
         for (const auto& vec : data) {
-            result += interpolateVec(vec);
+            result_c += interpolateVec_correct(vec);
+            result_lazy_1 += interpolateVec_1(vec);
+            result_lazy_2 += interpolateVec_2(vec);
+
+//            if (result_lazy_1 != result_c || result_lazy_2 != result_c) {
+//                std::for_each(vec.begin(), vec.end(), [](auto& v) {
+//                    std::cout << v << "\n";
+//                });
+//                exit(-1);
+//            }
         }
 
-        reportSolution(result);
+        std::cout << result_c << " vs " << result_lazy_1 << " vs " << result_lazy_2 << "\n";
+
+        reportSolution(result_c);
     }
 
     void v2() const override {
-        reportSolution(0);
+        int64_t result_c = 0;
+        int64_t result_lazy_1 = 0;
+        int64_t result_lazy_2 = 0;
+
+
     }
 
     void parseBenchReset() override {
-
+        data.clear();
     }
 
 private:
@@ -107,6 +124,8 @@ private:
     static int interpolateVec_correct(const std::vector<T>& input) {
         Pyramid<T> pyramid(static_cast<T>(input.size() - 1));
         calculatePyramidValue(pyramid, input, 0, 0);
+//        std::cout << "what the fuck?\n";
+//        std::cout << pyramid << "\n";
 
         int row = 0;
         int item = 0;
