@@ -84,33 +84,21 @@ public:
     }
 
     void v1() const override {
-        int64_t result_c = 0;
-        int64_t result_lazy_1 = 0;
-        int64_t result_lazy_2 = 0;
+        int64_t result = 0;
         for (const auto& vec : data) {
-            result_c += interpolateVec_correct(vec);
-            result_lazy_1 += interpolateVec_1(vec);
-            result_lazy_2 += interpolateVec_2(vec);
-
-//            if (result_lazy_1 != result_c || result_lazy_2 != result_c) {
-//                std::for_each(vec.begin(), vec.end(), [](auto& v) {
-//                    std::cout << v << "\n";
-//                });
-//                exit(-1);
-//            }
+            result += lazyInterpolateVec<false>(vec);
         }
 
-        std::cout << result_c << " vs " << result_lazy_1 << " vs " << result_lazy_2 << "\n";
-
-        reportSolution(result_c);
+        reportSolution(result);
     }
 
     void v2() const override {
-        int64_t result_c = 0;
-        int64_t result_lazy_1 = 0;
-        int64_t result_lazy_2 = 0;
+        int64_t result = 0;
+        for (const auto& vec : data) {
+             result += lazyInterpolateVec<true>(vec);
+        }
 
-
+        reportSolution(result);
     }
 
     void parseBenchReset() override {
@@ -120,72 +108,81 @@ public:
 private:
     std::vector<std::vector<int>> data;
 
-    template<typename T>
-    static int interpolateVec_correct(const std::vector<T>& input) {
+    template<bool LeftEdge, typename T> // non-lazy variant, calculates the entire pyramid. Slower compared to lazies, the larger the input is. O(N^2) slower.
+    static int interPolateVecFull(const std::vector<T>& input) {
         Pyramid<T> pyramid(static_cast<T>(input.size() - 1));
         calculatePyramidValue(pyramid, input, 0, 0);
-//        std::cout << "what the fuck?\n";
-//        std::cout << pyramid << "\n";
 
         int row = 0;
-        int item = 0;
+        int item;
+        if constexpr (LeftEdge) { item = 0; } else { item = row; }
+
         T interp{};
         while (row != pyramid.DIMENSION) {
-            interp += pyramid.atIndex(row, item);
-            row++;
-            item++;
+            auto pyramidEdgeValue = pyramid.atIndex(row, item);
+
+            if constexpr (LeftEdge) {
+                interp = pyramidEdgeValue - interp;
+                row++;
+                // item = 0; each time, so let's just do nothing
+            } else {
+                interp = pyramidEdgeValue + interp;
+                row++;
+                item++;
+            }
         }
-        int x = interp + input.back();
-        std::cout << "interp'd " << x << "\n";
-        return x;
+
+        if constexpr (LeftEdge) {
+            return input[0] - interp;
+        } else {
+            return input.back() + interp;
+        }
     }
 
-    template<typename T>
-    static int interpolateVec_1(const std::vector<T> & input) {
+    template<bool LeftEdge, typename T>
+    static int lazyInterpolateVec(const std::vector<T> & input) {
         Pyramid<T> pyramid(static_cast<T>(input.size() - 1));
         int size = input.size();
-        // start by pointing to the bottom right of the pyramid. -1 due to shrinkage by being "on top" of the vector, -1 due to 0 based index.
-        auto firstZeroCoordinate = lazyFillInterpolationPyramid_1(pyramid, input, size - 2, size - 2);
-        // now walk down the right-edge, starting at firstZeroCoordinate, to find the value that is interpolated to be next in the vector.
-        auto [row, item] = firstZeroCoordinate;
-        T interp{};
-        while (row != pyramid.DIMENSION) {
-            interp += pyramid.atIndex(row, item);
+        int itemIndex;
 
-            row++;
-            item++;
+        // compile-time evaluates whether to start "left" or "right" of the pyramid.
+        if constexpr (LeftEdge) {
+            itemIndex = 0;
+        } else {
+            itemIndex = size - 2;
         }
 
-        auto x = interp + input.back();
-        std::cout << "interp'd " << x << "\n";
-        return x;
-    }
-
-    template<typename T>
-    static int interpolateVec_2(const std::vector<T> & input) {
-        Pyramid<T> pyramid(static_cast<T>(input.size() - 1));
-        int size = input.size();
         // start by pointing to the bottom right of the pyramid. -1 due to shrinkage by being "on top" of the vector, -1 due to 0 based index.
-        auto firstZeroCoordinate = lazyFillInterpolationPyramid_2(pyramid, input, size - 2, size - 2);
+        auto row = lazyFillInterpolationPyramidFromEdge<LeftEdge>(pyramid, input, size - 2, itemIndex);
+
+        // similarly decide where in the row this zero is depending on the edge we inspect.
+        int item;
+        if constexpr (LeftEdge) { item = 0; } else { item = row; }
         // now walk down the right-edge, starting at firstZeroCoordinate, to find the value that is interpolated to be next in the vector.
-        auto [row, item] = firstZeroCoordinate;
         T interp{};
         while (row != pyramid.DIMENSION) {
-            interp += pyramid.atIndex(row, item);
+            auto pyramidEdgeValue = pyramid.atIndex(row, item);
 
-            row++;
-            item++;
+            if constexpr (LeftEdge) {
+                interp = pyramidEdgeValue - interp;
+                row++;
+                // item = 0; each time, so let's just do nothing
+            } else {
+                interp = pyramidEdgeValue + interp;
+                row++;
+                item++;
+            }
         }
 
-        auto x = interp + input.back();
-        std::cout << "interp'd " << x << "\n";
-        return x;
+        if constexpr (LeftEdge) {
+            return input[0] - interp;
+        } else {
+            return input.back() + interp;
+        }
     }
 
-/** Not that helpful due to problem 2 requiring left side, not even correct since we stop at the first zero which apparently is not valid. */
-
-    template<typename T>
-    static std::pair<int, int> lazyFillInterpolationPyramid_1(Pyramid<T>& pyramid, const std::vector<T> & input, int row, int item) {
+    template<bool LeftEdge, typename T>
+    static int lazyFillInterpolationPyramidFromEdge(Pyramid<T>& pyramid, const std::vector<T> & input, int row, int item) {
         if (row < 0 || item < 0) {
             std::cout << pyramid << "\n";
             throw std::logic_error("No interpolation possible, differences pyramid ends in non-zero.");
@@ -195,28 +192,22 @@ private:
         // This function exits early if there is no work to be done (i.e. the value is already assigned)
         calculatePyramidValue(pyramid,  input, row, item);
 
-        if (pyramidItem == 0 && pyramid.atIndex(row + 1, item) == 0 && pyramid.atIndex(row + 1, item + 1) == 0) { // we are done.
-            return std::make_pair(row, item);
-        } else { // We do not have enough information. Go up one step along the right edge of the pyramid.
-            return lazyFillInterpolationPyramid_1(pyramid, input, row - 1, item - 1);
-        }
-    }
+        // This is the condition under which we are 'done'. Just checking 0 in the current cell does not suffice:
+        // consider a pyramid layer [3 2 1 0], it would count itself done, while actually [-1 -1 -1] then [0 0] should be above it still.
+        if (
+                pyramidItem == 0 && // this item is zero
+                row + 1 != pyramid.DIMENSION && // safeguard for checking children. We could be done after just one row, but in such cases the cost of doing 1 more layer is worth not complicating the logic to me.
+                pyramid.atIndex(row + 1, item) == 0 && // left of this item is 0
+                pyramid.atIndex(row + 1, item + 1) == 0 // right of this item is 0
+        ) {
+            return row;
+        } else { // We do not have enough information. Go up one step along the edge of the pyramid.
 
-    template<typename T>
-    static std::pair<int, int> lazyFillInterpolationPyramid_2(Pyramid<T>& pyramid, const std::vector<T> & input, int row, int item) {
-        if (row < 0 || item < 0) {
-            std::cout << pyramid << "\n";
-            throw std::logic_error("No interpolation possible, differences pyramid ends in non-zero.");
-        }
-        T& pyramidItem = pyramid.atIndex(row, item);
+            // stick to 0 on the left edge, correct for there being 1 less item on a row on the right edge.
+            int itemOffset;
+            if constexpr (LeftEdge) { itemOffset = 0; } else { itemOffset = item - 1; }
 
-        // This function exits early if there is no work to be done (i.e. the value is already assigned)
-        calculatePyramidValue(pyramid,  input, row, item);
-
-        if (pyramidItem == 0) { // we are done.
-            return std::make_pair(row, item);
-        } else { // We do not have enough information. Go up one step along the right edge of the pyramid.
-            return lazyFillInterpolationPyramid_2(pyramid, input, row - 1, item - 1);
+            return lazyFillInterpolationPyramidFromEdge<LeftEdge>(pyramid, input, row - 1, itemOffset);
         }
     }
 
