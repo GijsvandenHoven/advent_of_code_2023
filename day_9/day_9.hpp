@@ -8,6 +8,7 @@
 #define DAY 9
 
 #define DO_LAZY_PYRAMID_INTERPOLATION true
+#define DO_ERROR_CHECKS false
 
 // Forward declaring the template class and the insertion operator of it.
 // This is a way to prevent declaring every template instantiotion a friend of every other operator<<.
@@ -23,15 +24,17 @@ class Pyramid : public std::vector<T> {
     // Declaring as friend only this version of operator<<.
     friend std::ostream& operator<< <T>(std::ostream&, const Pyramid<T>& p);
 
-    [[nodiscard]] int checkAccess(int row, int item) const {
+    [[nodiscard]] inline int checkAccess(int row, int item) const {
         int index = item + (((row+1) * row) / 2); // 0 based indexing for both item and row.
+#if DO_ERROR_CHECKS
         if (index >= this->size()) {
             throw std::logic_error("Out of bounds access on Pyramid: " + std::to_string(index) + " Requested on pyramid of dimension " + std::to_string(DIMENSION));
         }
+#endif
         return index;
     }
 
-    [[nodiscard]] size_t getIndex(int row, int item) const {
+    [[nodiscard]] inline size_t getIndex(int row, int item) const {
         return checkAccess(row, item);
     }
 
@@ -163,10 +166,12 @@ private:
 
     template<bool LeftEdge, typename T>
     static int lazyFillInterpolationPyramidFromEdge(Pyramid<T>& pyramid, const std::vector<T> & input, int row, int item) {
+#if DO_ERROR_CHECKS
         if (row < 0 || item < 0) {
             std::cout << pyramid << "\n";
             throw std::logic_error("No interpolation possible, differences pyramid ends in non-zero.");
         }
+#endif
         T& pyramidItem = pyramid.atIndex(row, item);
 
         // This function exits early if there is no work to be done (i.e. the value is already assigned)
@@ -248,3 +253,5 @@ private:
 };
 
 #undef DAY
+#undef DO_LAZY_PYRAMID_INTERPOLATION
+#undef DO_ERROR_CHECKS

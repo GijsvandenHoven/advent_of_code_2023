@@ -76,7 +76,7 @@ public:
 
                 if (i == static_cast<int>(targetForReport)) {
                     auto pct = static_cast<double>(i) / sampleCount;
-                    std::cout << (100 * pct) << "% ... ";
+                    std::cout << (100 * pct) << "%  ";
                     targetForReport += stepSize;
                 }
             }
