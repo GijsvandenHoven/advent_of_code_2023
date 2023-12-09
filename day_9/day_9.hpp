@@ -7,6 +7,8 @@
 
 #define DAY 9
 
+#define DO_LAZY_PYRAMID_INTERPOLATION true
+
 // Forward declaring the template class and the insertion operator of it.
 // This is a way to prevent declaring every template instantiotion a friend of every other operator<<.
 // e.g. Pyramid<int> and operator<<(Pyramid<double>) are NOT friends.
@@ -86,7 +88,11 @@ public:
     void v1() const override {
         int64_t result = 0;
         for (const auto& vec : data) {
+#if DO_LAZY_PYRAMID_INTERPOLATION == true
             result += lazyInterpolateVec<false>(vec);
+#else
+            result += interPolateVecFull<false>(vec);
+#endif
         }
 
         reportSolution(result);
@@ -95,7 +101,11 @@ public:
     void v2() const override {
         int64_t result = 0;
         for (const auto& vec : data) {
-             result += lazyInterpolateVec<true>(vec);
+#if DO_LAZY_PYRAMID_INTERPOLATION == true
+            result += lazyInterpolateVec<true>(vec);
+#else
+            result += interPolateVecFull<true>(vec);
+#endif
         }
 
         reportSolution(result);
@@ -108,37 +118,7 @@ public:
 private:
     std::vector<std::vector<int>> data;
 
-    template<bool LeftEdge, typename T> // non-lazy variant, calculates the entire pyramid. Slower compared to lazies, the larger the input is. O(N^2) slower.
-    static int interPolateVecFull(const std::vector<T>& input) {
-        Pyramid<T> pyramid(static_cast<T>(input.size() - 1));
-        calculatePyramidValue(pyramid, input, 0, 0);
-
-        int row = 0;
-        int item;
-        if constexpr (LeftEdge) { item = 0; } else { item = row; }
-
-        T interp{};
-        while (row != pyramid.DIMENSION) {
-            auto pyramidEdgeValue = pyramid.atIndex(row, item);
-
-            if constexpr (LeftEdge) {
-                interp = pyramidEdgeValue - interp;
-                row++;
-                // item = 0; each time, so let's just do nothing
-            } else {
-                interp = pyramidEdgeValue + interp;
-                row++;
-                item++;
-            }
-        }
-
-        if constexpr (LeftEdge) {
-            return input[0] - interp;
-        } else {
-            return input.back() + interp;
-        }
-    }
-
+#if DO_LAZY_PYRAMID_INTERPOLATION == true
     template<bool LeftEdge, typename T>
     static int lazyInterpolateVec(const std::vector<T> & input) {
         Pyramid<T> pyramid(static_cast<T>(input.size() - 1));
@@ -193,7 +173,8 @@ private:
         calculatePyramidValue(pyramid,  input, row, item);
 
         // This is the condition under which we are 'done'. Just checking 0 in the current cell does not suffice:
-        // consider a pyramid layer [3 2 1 0], it would count itself done, while actually [-1 -1 -1] then [0 0] should be above it still.
+        // consider a pyramid layer [3 2 1 0], it would count itself done,
+        // while actually [-1 -1 -1] then [0 0] should be above it still.
         if (
                 pyramidItem == 0 && // this item is zero
                 row + 1 != pyramid.DIMENSION && // safeguard for checking children. We could be done after just one row, but in such cases the cost of doing 1 more layer is worth not complicating the logic to me.
@@ -210,7 +191,39 @@ private:
             return lazyFillInterpolationPyramidFromEdge<LeftEdge>(pyramid, input, row - 1, itemOffset);
         }
     }
+#else
+    // non-lazy variant, calculates the entire pyramid. Slower compared to lazies, the larger the input is. O(N^2) slower.
+    template<bool LeftEdge, typename T>
+    static int interPolateVecFull(const std::vector<T>& input) {
+        Pyramid<T> pyramid(static_cast<T>(input.size() - 1));
+        calculatePyramidValue(pyramid, input, 0, 0);
 
+        int row = 0;
+        int item;
+        if constexpr (LeftEdge) { item = 0; } else { item = row; }
+
+        T interp{};
+        while (row != pyramid.DIMENSION) {
+            auto pyramidEdgeValue = pyramid.atIndex(row, item);
+
+            if constexpr (LeftEdge) {
+                interp = pyramidEdgeValue - interp;
+                row++;
+                // item = 0; each time, so let's just do nothing
+            } else {
+                interp = pyramidEdgeValue + interp;
+                row++;
+                item++;
+            }
+        }
+
+        if constexpr (LeftEdge) {
+            return input[0] - interp;
+        } else {
+            return input.back() + interp;
+        }
+    }
+#endif
     template<typename T>
     static const T& calculatePyramidValue(Pyramid<T>& pyramid, const std::vector<T>& base, int row, int item) {
         T& pyramidItem = pyramid.atIndex(row, item);
