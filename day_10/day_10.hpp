@@ -7,6 +7,8 @@
 
 #define DAY 10
 
+namespace Day10 { // todo: eval namespacing my shit.
+
 constexpr uint8_t none_bit = 0;
 constexpr uint8_t left_bit = 1 << 0;
 constexpr uint8_t right_bit = 1 << 1;
@@ -28,28 +30,58 @@ enum class PipeType : uint8_t {
 using PipeTypeEnumType = std::underlying_type_t<PipeType>;
 
 struct PipeSegment {
-    explicit PipeSegment(PipeType && p) : type_(p) {}
+    explicit PipeSegment(PipeType &&p) : type_(p) {}
 
-    [[nodiscard]] bool hasLeft() const  { return static_cast<PipeTypeEnumType>(type_) & left_bit; }
+    [[nodiscard]] bool hasLeft() const { return static_cast<PipeTypeEnumType>(type_) & left_bit; }
+
     [[nodiscard]] bool hasRight() const { return static_cast<PipeTypeEnumType>(type_) & right_bit; }
-    [[nodiscard]] bool hasUp() const    { return static_cast<PipeTypeEnumType>(type_) & up_bit; }
-    [[nodiscard]] bool hasDown() const  { return static_cast<PipeTypeEnumType>(type_) & down_bit; }
+
+    [[nodiscard]] bool hasUp() const { return static_cast<PipeTypeEnumType>(type_) & up_bit; }
+
+    [[nodiscard]] bool hasDown() const { return static_cast<PipeTypeEnumType>(type_) & down_bit; }
 
     [[nodiscard]] inline PipeType type() const { return type_; }
+
 private:
     PipeType type_; // consider this immutable.
 };
 
-using Maze = std::vector<std::vector<PipeSegment>>;
+enum class Direction : uint8_t {
+    NONE = none_bit,
+    UP = up_bit,
+    DOWN = down_bit,
+    LEFT = left_bit,
+    RIGHT = right_bit
+};
+
+using DirectionEnumType = std::underlying_type_t<Direction>;
+
+// these should be of comparable type.
+static_assert(std::is_same_v<PipeTypeEnumType, DirectionEnumType>);
+
+class Maze : public std::vector<std::vector<PipeSegment>> {
+public:
+    [[nodiscard]] const PipeSegment &at(int x, int y) const { return this->operator[](y)[x]; }
+};
+
+std::ostream& operator<<(std::ostream& os, const PipeType& pt) {
+    os << std::to_string(static_cast<PipeTypeEnumType>(pt));
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const Direction& pt) {
+    os << std::to_string(static_cast<DirectionEnumType>(pt));
+    return os;
+}
 
 CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
 
-    void parse(std::ifstream& input) override {
-        int c = 0;
-        int startX = 0;
-        int startY = 0;
+    void parse(std::ifstream &input) override {
+        int c;
+        int SX = 0;
+        int SY = 0;
 
         int x = 1; // both off by 1 since we are giving the maze a 1 layer apron.
         int y = 1;
@@ -57,8 +89,8 @@ public:
         maze.emplace_back(); // This is the first row of actual data.
         maze.back().emplace_back(PipeType::NONE); // start the row with 1x nothing.
         while ((c = input.get()) != EOF) {
-            auto& mazeRow = maze.back();
-            switch(c) {
+            auto &mazeRow = maze.back();
+            switch (c) {
                 case '\n':
                     mazeRow.emplace_back(PipeType::NONE); // end the row with 1x nothing.
                     y++;
@@ -89,15 +121,15 @@ public:
                     break;
                 case 'S': // starting point, unknown pipe segment.
                     mazeRow.emplace_back(PipeType::UNKNOWN);
-                    startX = x;
-                    startY = y;
+                    SX = x;
+                    SY = y;
                     break;
                 default:
                     throw std::logic_error("Unknown char " + std::string{static_cast<char>(c)});
             }
             x++;
         }
-        if (startX == 0 || startY == 0) {
+        if (SX == 0 || SY == 0) {
             throw std::logic_error("S was never assigned."); // S cannot be 0,0 since the perimeter belongs to the apron.
         }
         // EOF was reached. Add the bottom apron.
@@ -110,16 +142,16 @@ public:
             maze.back().emplace_back(PipeType::NONE); // last row
         }
 
-        auto &S = maze[startY][startX];
+        auto &S = maze[SY][SX]; // can't use at, we want a mutable reference.
         if (S.type() != PipeType::UNKNOWN) {
             throw std::logic_error("Wrongly assigned S coords.");
         }
 
         // Figure out what 'S' is supposed to be.
-        auto& left = maze[startY][startX - 1];
-        auto& right = maze[startY][startX + 1];
-        auto& up = maze[startY - 1][startX];
-        auto& down = maze[startY + 1][startX];
+        auto &left = maze.at(SX - 1, SY); //[startY][startX - 1];
+        auto &right = maze.at(SX + 1, SY);//[startY][startX + 1];
+        auto &up = maze.at(SX, SY - 1);   //[startY - 1][startX];
+        auto &down = maze.at(SX, SY + 1); //[startY + 1][startX];
 
         PipeTypeEnumType possible_s_directions = none_bit;
         if (left.hasRight()) possible_s_directions |= left_bit;
@@ -127,7 +159,7 @@ public:
         if (down.hasUp()) possible_s_directions |= down_bit;
         if (up.hasDown()) possible_s_directions |= up_bit;
 
-        switch(possible_s_directions) {
+        switch (possible_s_directions) {
             default:
                 throw std::logic_error("Possible S directions should be exactly two bits. Got: " + std::to_string(possible_s_directions));
             case static_cast<PipeTypeEnumType>(PipeType::LEFTRIGHT):
@@ -140,11 +172,31 @@ public:
                 break;
         }
 
-        startPosition = std::make_pair(startY, startX);
+        startX = SX;
+        startY = SY;
     }
 
     void v1() const override {
-        reportSolution(0);
+        int steps = 0;
+        int x = startX;
+        int y = startY;
+        auto cameFrom = Direction::NONE;
+        do {
+            auto& place = maze.at(x, y);
+            // std::cout << "At place marked " << place.type() << "\n";
+            cameFrom = tryTravel(place, cameFrom);
+            switch (cameFrom) {
+                case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
+                case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
+                case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
+                case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
+                default: throw std::logic_error("Impossible travel direction given by tryTravel().");
+            }
+            steps++;
+            // std::cout << "at step " << steps << ". x: " << x << ", y: " << y << "\n";
+        } while (! (x == startX && y == startY));
+
+        reportSolution(steps / 2);
     }
 
     void v2() const override {
@@ -152,13 +204,42 @@ public:
     }
 
     void parseBenchReset() override {
-        startPosition = {};
+        startX = 0;
+        startY = 0;
         maze.clear();
     }
 
 private:
     Maze maze;
-    std::pair<int, int> startPosition; // Y , X format. Index/Assign as such: maze[pair.first][pair.second].
+    int startX = 0;
+    int startY = 0;
+
+    static Direction tryTravel(const PipeSegment &from, const Direction &enterDirection) {
+        auto e = static_cast<DirectionEnumType>(enterDirection);
+
+        if (from.hasLeft() && !(e & left_bit)) {
+            // std::cout << "\t go left\n";
+            return Direction::LEFT;
+        }
+        if (from.hasRight() && !(e & right_bit)) {
+            // std::cout << "\t go right\n";
+            return Direction::RIGHT;
+        }
+        if (from.hasUp() && !(e & up_bit)) {
+            // std::cout << "\t go up\n";
+            return Direction::UP;
+        }
+        if (from.hasDown() && !(e & down_bit)) {
+            // std::cout << "\t go down\n";
+            return Direction::DOWN;
+        }
+
+        auto t = static_cast<PipeTypeEnumType>(from.type());
+        std::string error = "Impossible pipe configuration, cannot travel. Pipe: " + std::to_string(t) + ", Entered from: " + std::to_string(e);
+        throw std::logic_error(error);
+    }
 };
+
+} // namespace
 
 #undef DAY

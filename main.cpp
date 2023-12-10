@@ -30,7 +30,7 @@ std::map<int, std::function<std::unique_ptr<Day>()>> day_constructor_functions =
         { 7, [](){ return std::make_unique<Day7>(); } },
         { 8, [](){ return std::make_unique<Day8>(); } },
         { 9, [](){ return std::make_unique<Day9>(); } },
-        { 10,[](){ return std::make_unique<Day10>(); } },
+        { 10,[](){ return std::make_unique<Day10::Day10>(); } },
         { 11,[](){ return std::make_unique<Day11>(); } },
         { 12,[](){ return std::make_unique<Day12>(); } },
         { 13,[](){ return std::make_unique<Day13>(); } },
