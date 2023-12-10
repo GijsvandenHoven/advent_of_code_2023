@@ -8,21 +8,21 @@
 #define DAY 9
 
 #define DO_LAZY_PYRAMID_INTERPOLATION true
-#define DO_ERROR_CHECKS false
+#define DO_ERROR_CHECKS false // i.e. indexing out of array bounds.
 
 // Forward declaring the template class and the insertion operator of it.
 // This is a way to prevent declaring every template instantiotion a friend of every other operator<<.
 // e.g. Pyramid<int> and operator<<(Pyramid<double>) are NOT friends.
 // https://stackoverflow.com/questions/4660123/overloading-friend-operator-for-class-template
 
-template <typename T> class Pyramid;
-template <typename T> std::ostream& operator<< ( std::ostream&, const Pyramid<T>& );
+template <typename T, int N> class Pyramid;
+template <typename T, int N> std::ostream& operator<< ( std::ostream&, const Pyramid<T, N>& );
 
-template<typename T>
-class Pyramid : public std::vector<T> {
+template<typename T, int N>
+class Pyramid : public std::array<T, N> {
 
     // Declaring as friend only this version of operator<<.
-    friend std::ostream& operator<< <T>(std::ostream&, const Pyramid<T>& p);
+    friend std::ostream& operator<< <T>(std::ostream&, const Pyramid<T, N>& p);
 
     [[nodiscard]] inline int checkAccess(int row, int item) const {
         int index = item + (((row+1) * row) / 2); // 0 based indexing for both item and row.
@@ -39,16 +39,22 @@ class Pyramid : public std::vector<T> {
     }
 
 public:
-    explicit Pyramid(int base) : std::vector<T>(0), DIMENSION(base) {
+    explicit Pyramid(int base) : DIMENSION(base) {
+#if DO_ERROR_CHECKS
         auto siz = static_cast<size_t>((base+1) * (base / 2.0));
-        this->resize(siz, UNINITIALIZED_VALUE);
+        if (siz > this->size()) {
+            throw std::logic_error(
+                    "Pyramid with base " + std::to_string(base) +
+                    " (" + std::to_string(siz) + " units) Cannot be created with " + std::to_string(N) +
+                    " units of memory. Declare your pyramid with larger N for Pyramid<T, N>."
+            );
+        }
+#endif
+        std::fill(this->begin(), this->end(), UNINITIALIZED_VALUE); // could calculat size and only std::fill that section but...
     }
 
     // Get a reference to the item in the pyramid, referenced by 0-based row and column. Row 0 is the tip of the pyramid.
-    [[nodiscard]] T& atIndex(int row, int item) {
-        return this->operator[](getIndex(row, item));
-    }
-    [[nodiscard]] const T& atIndex(int row, int item) const {
+    [[nodiscard]] inline T& atIndex(int row, int item) {
         return this->operator[](getIndex(row, item));
     }
 
@@ -56,21 +62,6 @@ public:
 
     const int DIMENSION;
 };
-
-template<typename T>
-std::ostream &operator<<(std::ostream & os, const Pyramid<T> &p) {
-    os << "Pyramid {\n";
-    int width = 1;
-    for (int i = 0; i < p.DIMENSION; ++i) {
-        for (int j = 0; j < width; ++j) {
-            os << p.atIndex(i, j) << " ";
-        }
-        width++;
-        os << "\n";
-    }
-    os << "}";
-    return os;
-}
 
 CLASS_DEF(DAY) {
 public:
@@ -91,8 +82,8 @@ public:
     void v1() const override {
         int64_t result = 0;
         for (const auto& vec : data) {
-#if DO_LAZY_PYRAMID_INTERPOLATION == true
-            result += lazyInterpolateVec<false>(vec);
+#if DO_LAZY_PYRAMID_INTERPOLATION
+            result += lazyInterpolateVec<false, 256>(vec); // powers of 2 seem slightly more efficient w.r.t AVX registers and std::fill, at least for the case of 210 to 256
 #else
             result += interPolateVecFull<false>(vec);
 #endif
@@ -104,8 +95,8 @@ public:
     void v2() const override {
         int64_t result = 0;
         for (const auto& vec : data) {
-#if DO_LAZY_PYRAMID_INTERPOLATION == true
-            result += lazyInterpolateVec<true>(vec);
+#if DO_LAZY_PYRAMID_INTERPOLATION
+            result += lazyInterpolateVec<true, 256>(vec); // powers of 2 seem slightly more efficient w.r.t AVX registers and std::fill, at least for the case of 210 to 256
 #else
             result += interPolateVecFull<true>(vec);
 #endif
@@ -121,10 +112,10 @@ public:
 private:
     std::vector<std::vector<int>> data;
 
-#if DO_LAZY_PYRAMID_INTERPOLATION == true
-    template<bool LeftEdge, typename T>
+#if DO_LAZY_PYRAMID_INTERPOLATION
+    template<bool LeftEdge, int N, typename T>
     static int lazyInterpolateVec(const std::vector<T> & input) {
-        Pyramid<T> pyramid(static_cast<T>(input.size() - 1));
+        Pyramid<T, N> pyramid(static_cast<T>(input.size() - 1));
         int size = input.size();
         int itemIndex;
 
@@ -164,8 +155,8 @@ private:
         }
     }
 
-    template<bool LeftEdge, typename T>
-    static int lazyFillInterpolationPyramidFromEdge(Pyramid<T>& pyramid, const std::vector<T> & input, int row, int item) {
+    template<bool LeftEdge, int N, typename T>
+    static int lazyFillInterpolationPyramidFromEdge(Pyramid<T, N>& pyramid, const std::vector<T> & input, int row, int item) {
 #if DO_ERROR_CHECKS
         if (row < 0 || item < 0) {
             std::cout << pyramid << "\n";
@@ -198,9 +189,9 @@ private:
     }
 #else
     // non-lazy variant, calculates the entire pyramid. Slower compared to lazies, the larger the input is. O(N^2) slower.
-    template<bool LeftEdge, typename T>
+    template<bool LeftEdge, int N, typename T>
     static int interPolateVecFull(const std::vector<T>& input) {
-        Pyramid<T> pyramid(static_cast<T>(input.size() - 1));
+        Pyramid<T, N> pyramid(static_cast<T>(input.size() - 1));
         calculatePyramidValue(pyramid, input, 0, 0);
 
         int row = 0;
@@ -229,8 +220,9 @@ private:
         }
     }
 #endif
-    template<typename T>
-    static const T& calculatePyramidValue(Pyramid<T>& pyramid, const std::vector<T>& base, int row, int item) {
+
+    template<typename T, int N>
+    static const T& calculatePyramidValue(Pyramid<T, N>& pyramid, const std::vector<T>& base, int row, int item) {
         T& pyramidItem = pyramid.atIndex(row, item);
         if (pyramidItem == pyramid.UNINITIALIZED_VALUE) {
             // calculate this value in the pyramid by taking the difference of the items 'left' and 'right' below it.
@@ -251,6 +243,21 @@ private:
         return pyramidItem;
     }
 };
+
+template<typename T, int N>
+std::ostream &operator<<(std::ostream & os, const Pyramid<T, N> &p) {
+    os << "Pyramid {\n";
+    int width = 1;
+    for (int i = 0; i < p.DIMENSION; ++i) {
+        for (int j = 0; j < width; ++j) {
+            os << p.atIndex(i, j) << " ";
+        }
+        width++;
+        os << "\n";
+    }
+    os << "}";
+    return os;
+}
 
 #undef DAY
 #undef DO_LAZY_PYRAMID_INTERPOLATION
