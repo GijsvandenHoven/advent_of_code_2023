@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <queue>
 
 #include "../util/Day.hpp"
 #include "../util/macros.hpp"
@@ -59,9 +60,22 @@ using DirectionEnumType = std::underlying_type_t<Direction>;
 // these should be of comparable type.
 static_assert(std::is_same_v<PipeTypeEnumType, DirectionEnumType>);
 
-class Maze : public std::vector<std::vector<PipeSegment>> {
+template<typename T>
+class Maze : public std::vector<std::vector<T>> {
 public:
-    [[nodiscard]] const PipeSegment &at(int x, int y) const { return this->operator[](y)[x]; }
+    [[nodiscard]] const T &at(int x, int y) const { return this->operator[](y)[x]; }
+    [[nodiscard]] T &at(int x, int y) { return this->operator[](y)[x]; }
+
+    [[nodiscard]] std::pair<bool, T*> safeAt(int x, int y) {
+        if (x < 0 || x >= this->operator[](y).size()) {
+            return std::make_pair(false, nullptr);
+        }
+        if (y < 0 || y >= this->size()) {
+            return std::make_pair(false, nullptr);
+        }
+
+        return std::make_pair(true, &at(x, y));
+    }
 };
 
 struct SearchablePipeSegment : public PipeSegment {
@@ -69,11 +83,6 @@ struct SearchablePipeSegment : public PipeSegment {
 
     explicit SearchablePipeSegment(PipeType &&p) : PipeSegment(std::forward<PipeType>(p)) {}
 };
-
-//class SearchableMaze : public std::vector<std::vector<SearchablePipeSegment>> {
-//public:
-//    [[nodiscard]] const PipeSegment &at(int x, int y) const { return this->operator[](y)[x]; }
-//};
 
 std::ostream& operator<<(std::ostream& os, const PipeType& pt) {
     os << std::to_string(static_cast<PipeTypeEnumType>(pt));
@@ -99,7 +108,22 @@ std::ostream& operator<<(std::ostream& os, const PipeSegment& p) {
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const Maze& m) {
+std::ostream& operator<<(std::ostream& os, const SearchablePipeSegment& p) {
+    switch (p.type()) {
+        case PipeType::NONE:            os << (p.visited ? 'X' : '.'); break;
+        case PipeType::LEFTRIGHT:       os << '-'; break;
+        case PipeType::UPDOWN:          os << '|'; break;
+        case PipeType::UPRIGHT:         os << 'L'; break;
+        case PipeType::RIGHTDOWN:       os << 'F'; break;
+        case PipeType::DOWNLEFT:        os << '7'; break;
+        case PipeType::LEFTUP:          os << 'J'; break;
+        default: throw std::logic_error("Unknown PipeSegment.type() in operator<< of PipeSegment.");
+    }
+    return os;
+}
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const Maze<T>& m) {
     std::for_each(m.begin(), m.end(), [&os](const auto& row) {
         std::for_each(row.begin(), row.end(), [&os](const auto& item) {
             os << item;
@@ -177,7 +201,7 @@ public:
             maze.back().emplace_back(PipeType::NONE); // last row
         }
 
-        auto &S = maze[SY][SX]; // can't use at, we want a mutable reference.
+        auto &S = maze.at(SX, SY);
         if (S.type() != PipeType::UNKNOWN) {
             throw std::logic_error("Wrongly assigned S coords.");
         }
@@ -209,8 +233,6 @@ public:
 
         startX = SX;
         startY = SY;
-//        std::cout << "maze constructed:\n";
-//        std::cout << maze << "\n";
     }
 
     void v1() const override {
@@ -236,12 +258,12 @@ public:
 
     void v2() const override {
 //        std::cout << "SEPARATOR\n\n";
-        Maze copy;
-        copy.reserve(maze.size());
+        Maze<SearchablePipeSegment> BFSWorksheet;
+        BFSWorksheet.reserve(maze.size());
         for (auto& row : maze) {
-            copy.emplace_back();
+            BFSWorksheet.emplace_back();
             for(int i = 0; i < row.size(); ++i) {
-                copy.back().emplace_back(PipeType::NONE);
+                BFSWorksheet.back().emplace_back(PipeType::NONE);
             }
         }
 
@@ -250,7 +272,7 @@ public:
         auto cameFrom = Direction::NONE;
         do {
             auto& place = maze.at(x, y);
-            copy[y][x] = place;
+            BFSWorksheet.at(x, y) = SearchablePipeSegment{place.type()};
             cameFrom = tryTravel(place, cameFrom);
             switch (cameFrom) {
                 case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
@@ -261,9 +283,24 @@ public:
             }
         } while (! (x == startX && y == startY));
 
-        std::cout << copy << "\n";
+        std::cout << "Before:\n\n" << BFSWorksheet << "\n";
 
-        reportSolution(0);
+        // We can safely start our search in 0,0: Since the entire maze has a perimeter added for OOB checks on the loop,
+        // we can re-use it as a guaranteed encirclement of the pipes.
+        BFSReachableTiles(BFSWorksheet);
+
+        std::cout << "After:\n\n" << BFSWorksheet << "\n";
+
+        int unreachables = 0;
+        for (auto& row : BFSWorksheet) {
+            for (auto& item : row) {
+                if (!item.visited && item.type() == PipeType::NONE) {
+                    unreachables++;
+                }
+            }
+        }
+
+        reportSolution(unreachables);
     }
 
     void parseBenchReset() override {
@@ -273,7 +310,7 @@ public:
     }
 
 private:
-    Maze maze;
+    Maze<PipeSegment> maze;
     int startX = 0;
     int startY = 0;
 
@@ -296,6 +333,32 @@ private:
         auto t = static_cast<PipeTypeEnumType>(from.type());
         std::string error = "Impossible pipe configuration, cannot travel. Pipe: " + std::to_string(t) + ", Entered from: " + std::to_string(e);
         throw std::logic_error(error);
+    }
+
+    static void BFSReachableTiles(Maze<SearchablePipeSegment>& worksheet, int startX = 0, int startY = 0) {
+        std::queue<std::pair<int, int>> coordinateQueue;
+        coordinateQueue.emplace(startX, startY);
+
+        // Start by marking the starting node as visited.
+        worksheet.at(startX, startY).visited = true;
+        // BFS algo, instead of "visted set" we use the mutable worksheet to do this job.
+        while (! coordinateQueue.empty()) {
+            auto [x, y] = coordinateQueue.front();
+            coordinateQueue.pop();
+
+            const std::array<std::pair<int,int>, 4> neighbours {{ {x-1,y}, {x+1,y}, {x,y-1}, {x,y+1} }};
+            for (auto [nx, ny] : neighbours) {
+                auto [safe, ptr] = worksheet.safeAt(nx, ny);
+
+                if (safe && !ptr->visited && ptr->type() == PipeType::NONE) {
+                    ptr->visited = true;
+                    coordinateQueue.emplace(nx, ny);
+                }
+            }
+        }
+
+        std::cout << "TEST\n";
+        std::cout << worksheet.at(27, 13) << "\n";
     }
 };
 
