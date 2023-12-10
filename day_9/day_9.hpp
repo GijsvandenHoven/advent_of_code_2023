@@ -19,7 +19,7 @@ template <typename T, int N> class Pyramid;
 template <typename T, int N> std::ostream& operator<< ( std::ostream&, const Pyramid<T, N>& );
 
 template<typename T, int N>
-class Pyramid : public std::array<T, N> {
+class Pyramid : private std::array<T, N> {
 
     // Declaring as friend only this version of operator<<.
     friend std::ostream& operator<< <T>(std::ostream&, const Pyramid<T, N>& p);
