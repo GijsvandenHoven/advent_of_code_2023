@@ -64,6 +64,17 @@ public:
     [[nodiscard]] const PipeSegment &at(int x, int y) const { return this->operator[](y)[x]; }
 };
 
+struct SearchablePipeSegment : public PipeSegment {
+    bool visited = false;
+
+    explicit SearchablePipeSegment(PipeType &&p) : PipeSegment(std::forward<PipeType>(p)) {}
+};
+
+//class SearchableMaze : public std::vector<std::vector<SearchablePipeSegment>> {
+//public:
+//    [[nodiscard]] const PipeSegment &at(int x, int y) const { return this->operator[](y)[x]; }
+//};
+
 std::ostream& operator<<(std::ostream& os, const PipeType& pt) {
     os << std::to_string(static_cast<PipeTypeEnumType>(pt));
     return os;
@@ -71,6 +82,30 @@ std::ostream& operator<<(std::ostream& os, const PipeType& pt) {
 
 std::ostream& operator<<(std::ostream& os, const Direction& pt) {
     os << std::to_string(static_cast<DirectionEnumType>(pt));
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const PipeSegment& p) {
+    switch (p.type()) {
+        case PipeType::NONE:            os << '.'; break;
+        case PipeType::LEFTRIGHT:       os << '-'; break;
+        case PipeType::UPDOWN:          os << '|'; break;
+        case PipeType::UPRIGHT:         os << 'L'; break;
+        case PipeType::RIGHTDOWN:       os << 'F'; break;
+        case PipeType::DOWNLEFT:        os << '7'; break;
+        case PipeType::LEFTUP:          os << 'J'; break;
+        default: throw std::logic_error("Unknown PipeSegment.type() in operator<< of PipeSegment.");
+    }
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const Maze& m) {
+    std::for_each(m.begin(), m.end(), [&os](const auto& row) {
+        std::for_each(row.begin(), row.end(), [&os](const auto& item) {
+            os << item;
+        });
+        os << "\n";
+    });
     return os;
 }
 
@@ -174,6 +209,8 @@ public:
 
         startX = SX;
         startY = SY;
+//        std::cout << "maze constructed:\n";
+//        std::cout << maze << "\n";
     }
 
     void v1() const override {
@@ -183,7 +220,6 @@ public:
         auto cameFrom = Direction::NONE;
         do {
             auto& place = maze.at(x, y);
-            // std::cout << "At place marked " << place.type() << "\n";
             cameFrom = tryTravel(place, cameFrom);
             switch (cameFrom) {
                 case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
@@ -193,13 +229,40 @@ public:
                 default: throw std::logic_error("Impossible travel direction given by tryTravel().");
             }
             steps++;
-            // std::cout << "at step " << steps << ". x: " << x << ", y: " << y << "\n";
         } while (! (x == startX && y == startY));
 
         reportSolution(steps / 2);
     }
 
     void v2() const override {
+//        std::cout << "SEPARATOR\n\n";
+        Maze copy;
+        copy.reserve(maze.size());
+        for (auto& row : maze) {
+            copy.emplace_back();
+            for(int i = 0; i < row.size(); ++i) {
+                copy.back().emplace_back(PipeType::NONE);
+            }
+        }
+
+        int x = startX;
+        int y = startY;
+        auto cameFrom = Direction::NONE;
+        do {
+            auto& place = maze.at(x, y);
+            copy[y][x] = place;
+            cameFrom = tryTravel(place, cameFrom);
+            switch (cameFrom) {
+                case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
+                case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
+                case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
+                case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
+                default: throw std::logic_error("Impossible travel direction given by tryTravel().");
+            }
+        } while (! (x == startX && y == startY));
+
+        std::cout << copy << "\n";
+
         reportSolution(0);
     }
 
@@ -218,19 +281,15 @@ private:
         auto e = static_cast<DirectionEnumType>(enterDirection);
 
         if (from.hasLeft() && !(e & left_bit)) {
-            // std::cout << "\t go left\n";
             return Direction::LEFT;
         }
         if (from.hasRight() && !(e & right_bit)) {
-            // std::cout << "\t go right\n";
             return Direction::RIGHT;
         }
         if (from.hasUp() && !(e & up_bit)) {
-            // std::cout << "\t go up\n";
             return Direction::UP;
         }
         if (from.hasDown() && !(e & down_bit)) {
-            // std::cout << "\t go down\n";
             return Direction::DOWN;
         }
 
