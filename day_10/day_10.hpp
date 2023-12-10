@@ -141,8 +141,6 @@ public:
         }
 
         startPosition = std::make_pair(startY, startX);
-        std::cout << "S was assigned as such. L: " << S.hasLeft() << ", R: " << S.hasRight() << ", U: " << S.hasUp() << ", D: " << S.hasDown() << "\n";
-        std::cout << "It is found at " << startPosition.first << ", " << startPosition.second << "\n";
     }
 
     void v1() const override {
@@ -154,7 +152,8 @@ public:
     }
 
     void parseBenchReset() override {
-
+        startPosition = {};
+        maze.clear();
     }
 
 private:
