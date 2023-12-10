@@ -85,7 +85,7 @@ public:
 #if DO_LAZY_PYRAMID_INTERPOLATION
             result += lazyInterpolateVec<false, 256>(vec); // powers of 2 seem slightly more efficient w.r.t AVX registers and std::fill, at least for the case of 210 to 256
 #else
-            result += interPolateVecFull<false>(vec);
+            result += interPolateVecFull<false, 256>(vec);
 #endif
         }
 
@@ -98,7 +98,7 @@ public:
 #if DO_LAZY_PYRAMID_INTERPOLATION
             result += lazyInterpolateVec<true, 256>(vec); // powers of 2 seem slightly more efficient w.r.t AVX registers and std::fill, at least for the case of 210 to 256
 #else
-            result += interPolateVecFull<true>(vec);
+            result += interPolateVecFull<true, 256>(vec);
 #endif
         }
 
