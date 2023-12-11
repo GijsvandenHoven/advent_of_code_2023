@@ -81,6 +81,10 @@ public:
 struct SearchablePipeSegment : public PipeSegment {
     bool visited = false;
 
+    // May be used for searching algos. They are expected to clean up after themselves,
+    // i.e. there is never a 'dirty' SPG object present in a container passed to a searching algorithm.
+    bool dirty = false;
+
     explicit SearchablePipeSegment(PipeType &&p) : PipeSegment(std::forward<PipeType>(p)) {}
 };
 
@@ -288,6 +292,7 @@ public:
         // We can safely start our search in 0,0: Since the entire maze has a perimeter added for OOB checks on the loop,
         // we can re-use it as a guaranteed encirclement of the pipes.
         BFSReachableTiles(BFSWorksheet);
+        DFSReachableWallSqueezingTiles(BFSWorksheet);
 
         std::cout << "After:\n\n" << BFSWorksheet << "\n";
 
@@ -356,9 +361,59 @@ private:
                 }
             }
         }
+    }
 
-        std::cout << "TEST\n";
-        std::cout << worksheet.at(27, 13) << "\n";
+    /**
+     * Tries to connect any unvisited tiles to visited tiles with DFS.
+     * Will "squeeze" between walls to try and connect.
+     * Assumes there exists an "outer blob" of visited tiles. No OOB checking is made on indexing the work sheet.
+     */
+    static void DFSReachableWallSqueezingTiles(Maze<SearchablePipeSegment>& worksheet) {
+        std::vector<std::pair<int, int>> work;
+
+        int y = 0;
+        for (auto& row : worksheet) {
+            int x = 0;
+            for (auto& item : row) {
+                if (! item.visited && item.type() == PipeType::NONE) {
+                    work.emplace_back(x, y);
+                }
+                x++;
+            }
+            y++;
+        }
+
+        std::cout << "DFS workload is " << work.size() << "\n";
+
+        for (auto& [wx, wy] : work) {
+            DFSReachableWallSqueezingSingleTile(worksheet, wx, wy);
+            exit(-1);
+        }
+    }
+
+    // helper of DFSReachableWallSqueezingTiles. Same ideas apply, works from a single starting tile
+    static bool DFSReachableWallSqueezingSingleTile(Maze<SearchablePipeSegment>& worksheet, int x, int y) {
+        auto& here = worksheet.at(x, y);
+        here.dirty = true;
+        // try each adjacent tile including diagonals: May I go here?
+        const std::array<std::pair<int, int>, 8> coords{{ {x-1,y-1}, {x,y-1}, {x+1,y-1}, {x-1,y}, {x+1,y}, {x-1,y+1}, {x, y+1}, {x+1,y+1} }};
+        bool foundConnection = false;
+        for (auto [nx, ny] : coords) {
+            auto& neighbour = worksheet.at(nx, ny);
+            if (neighbour.visited) {
+                return true;
+            }
+            if (! neighbour.dirty) { // todo: ALL the rules for crossing.
+                // can I go from here to neighbour?
+                bool connects = DFSReachableWallSqueezingSingleTile(worksheet, nx, ny);
+                if (connects) {
+                    foundConnection = true;
+                    break;
+                }
+            }
+        }
+
+        return foundConnection;
     }
 };
 
