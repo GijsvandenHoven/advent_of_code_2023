@@ -9,6 +9,8 @@
 
 #define DAY 8
 
+NAMESPACE_DEF(DAY) {
+
 class NetworkNode;
 using NetworkNodePtr = std::shared_ptr<NetworkNode>;
 
@@ -245,5 +247,7 @@ private:
         return current;
     }
 };
+
+}
 
 #undef DAY

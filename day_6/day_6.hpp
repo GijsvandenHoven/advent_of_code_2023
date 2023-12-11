@@ -8,6 +8,8 @@
 
 #define DAY 6
 
+NAMESPACE_DEF(DAY) {
+
 CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
@@ -139,5 +141,7 @@ private:
         race_distances.clear();
     }
 };
+
+}
 
 #undef DAY

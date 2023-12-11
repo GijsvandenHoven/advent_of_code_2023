@@ -7,6 +7,8 @@
 
 #define DAY 2
 
+NAMESPACE_DEF(DAY) {
+
 /**
  * Retroactively added to this template, used to be a lone int main() file.
  * The original consumed the ifstream directly, which is hard to replicate with immutability.
@@ -183,5 +185,7 @@ private:
         return ! (g > CONSTRAINTS);
     }
 };
+
+}
 
 #undef DAY

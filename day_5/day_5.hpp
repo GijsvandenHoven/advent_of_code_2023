@@ -9,6 +9,8 @@
 
 #define DAY 5
 
+NAMESPACE_DEF(DAY) {
+
 struct Range;
 
 // std::pair<bool, T> is the poor man's monad.
@@ -407,5 +409,7 @@ private:
     }
 
 };
+
+}
 
 #undef DAY

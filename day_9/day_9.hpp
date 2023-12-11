@@ -10,6 +10,8 @@
 #define DO_LAZY_PYRAMID_INTERPOLATION true
 #define DO_ERROR_CHECKS false // i.e. indexing out of array bounds.
 
+NAMESPACE_DEF(DAY) {
+
 // Forward declaring the template class and the insertion operator of it.
 // This is a way to prevent declaring every template instantiotion a friend of every other operator<<.
 // e.g. Pyramid<int> and operator<<(Pyramid<double>) are NOT friends.
@@ -259,6 +261,7 @@ std::ostream &operator<<(std::ostream & os, const Pyramid<T, N> &p) {
     return os;
 }
 
+}
 #undef DAY
 #undef DO_LAZY_PYRAMID_INTERPOLATION
 #undef DO_ERROR_CHECKS

@@ -7,6 +7,8 @@
 
 #define DAY 7
 
+NAMESPACE_DEF(DAY) {
+
 // ordered from weakest to strongest, for use in sorting with operator<.
 enum class HandType : int8_t {
     SADNESS = 00,
@@ -189,5 +191,7 @@ private:
     std::vector<Hand> hands_1;
     std::vector<Hand> hands_2;
 };
+
+}
 
 #undef DAY

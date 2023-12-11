@@ -7,6 +7,8 @@
 
 #define DAY 4
 
+NAMESPACE_DEF(DAY) {
+
 /**
  * Retroactively added to this template, used to be a lone int main() file.
  * Before the 'new template' was made, there was also a second solution to improve on the original,
@@ -100,5 +102,7 @@ public:
 private:
     std::vector<ScratchCard> cards;
 };
+
+}
 
 #undef DAY
