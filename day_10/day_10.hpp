@@ -250,7 +250,10 @@ public:
                 case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
                 case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
                 case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode"
                 default: throw std::logic_error("Impossible travel direction given by tryTravel().");
+#pragma clang diagnostic pop
             }
             steps++;
         } while (! (x == startX && y == startY));
@@ -272,49 +275,102 @@ public:
             }
         }
 
-        std::cout << "maze:\n" << maze << "\n";
-        std::cout << "exploded:\n" << explodedMaze << "\n";
-
         auto BFSWorksheetOuter = BFSWorksheet; // copy
         auto BFSWorksheetInner = std::move(BFSWorksheet); // and move.
 
         doDoubleLoopCheckOnExplodedMaze(explodedMaze, BFSWorksheetOuter, BFSWorksheetInner);
-//
-//        int x = startX;
-//        int y = startY;
-//        auto cameFrom = Direction::NONE;
-//        do {
-//            auto& place = maze.at(x, y);
-//            explodedMaze.at(x, y) = SearchablePipeSegment{place.type()};
-//            cameFrom = tryTravel(place, cameFrom);
-//            switch (cameFrom) {
-//                case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
-//                case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
-//                case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
-//                case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
-//                default: throw std::logic_error("Impossible travel direction given by tryTravel().");
-//            }
-//        } while (! (x == startX && y == startY));
-//
-//        std::cout << "Before:\n\n" << explodedMaze << "\n";
-//
-//        // We can safely start our search in 0,0: Since the entire maze has a perimeter added for OOB checks on the loop,
-//        // we can re-use it as a guaranteed encirclement of the pipes.
-//        BFSReachableTiles(explodedMaze);
-//
-//        std::cout << "After:\n\n" << explodedMaze << "\n";
-//
-//        int unreachables = 0;
-//        for (auto& row : explodedMaze) {
-//            for (auto& item : row) {
-//                if (!item.visited && item.type() == PipeType::NONE) {
-//                    unreachables++;
-//                }
-//            }
-//        }
-//
-//        reportSolution(unreachables);
-        reportSolution(0);
+
+        BFSReachableTiles(BFSWorksheetOuter);
+        BFSReachableTiles(BFSWorksheetInner);
+
+        // for every 'virtual' tile, the 2x2 block representing one tile in the exploded maze.
+        // Count it as explored if _either_ of the worksheets could reach it.
+        // Conversely, if neither worksheet could reach it, it is unreachable.
+        Maze<SearchablePipeSegment> shrunkDown;
+        for (int i = 0; i < explodedMaze.size(); i+=2) {
+            shrunkDown.emplace_back();
+            for (int j = 0; j < explodedMaze[i].size(); j+=2) {
+                auto& t1 = BFSWorksheetOuter[i][j];
+                auto& t2 = BFSWorksheetInner[i][j];
+                bool reachable = (t1.visited || t2.visited) && t1.type() == PipeType::NONE && t2.type() == PipeType::NONE;
+
+                // what was this tile?
+                std::array<SearchablePipeSegment, 4> virtualTile {{
+                    { BFSWorksheetOuter[i][j] },
+                    { BFSWorksheetOuter[i][j+1] },
+                    { BFSWorksheetOuter[i+1][j] },
+                    { BFSWorksheetOuter[i+1][j+1] },
+                }};
+
+                int remarkability = 0;
+                PipeType mostRemarkableItem = PipeType::NONE;
+                for (auto& v : virtualTile) {
+                    switch(v.type()) {
+                        case PipeType::NONE:
+                            break;
+                        case PipeType::UPDOWN:
+                        case PipeType::LEFTRIGHT:
+                            if (remarkability < 1) {
+                                mostRemarkableItem = v.type();
+                                remarkability = 1;
+                            }
+                            break;
+                        case PipeType::LEFTUP:
+                        case PipeType::UPRIGHT:
+                        case PipeType::RIGHTDOWN:
+                        case PipeType::DOWNLEFT:
+                            mostRemarkableItem = v.type();
+                            remarkability = 2;
+                            break;
+                        default: throw std::logic_error("Unknown pipe type in maze reconstruction");
+                    }
+                }
+
+                shrunkDown.back().emplace_back(std::move(mostRemarkableItem)); // NOLINT(*-move-const-arg) - compile error if not rvalue ref.
+                shrunkDown.back().back().visited = reachable;
+            }
+        }
+
+        Maze<SearchablePipeSegment> triviallyReachable;
+        for (auto& row : maze) {
+            triviallyReachable.emplace_back();
+            for (int i = 0; i < row.size(); ++i) {
+                triviallyReachable.back().emplace_back(PipeType::NONE);
+            }
+        }
+
+        int x = startX;
+        int y = startY;
+        auto cameFrom = Direction::NONE;
+        do {
+            auto& place = maze.at(x, y);
+            triviallyReachable.at(x, y) = SearchablePipeSegment{place.type()};
+            cameFrom = tryTravel(place, cameFrom);
+            switch (cameFrom) {
+                case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
+                case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
+                case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
+                case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode"
+                default: throw std::logic_error("Impossible travel direction given by tryTravel().");
+#pragma clang diagnostic pop
+            }
+        } while (! (x == startX && y == startY));
+
+        BFSReachableTiles(triviallyReachable);
+
+        int enclosedTiles = 0;
+        for (int i = 1; i < shrunkDown.size() - 1; ++i) {
+            for (int j = 1; j < shrunkDown[i].size() - 1; ++j) {
+                auto& item = shrunkDown[i][j];
+                if (item.type() == PipeType::NONE && ! item.visited) {
+                    enclosedTiles ++;
+                }
+            }
+        }
+
+        reportSolution(enclosedTiles);
     }
 
     void parseBenchReset() override {
@@ -349,7 +405,10 @@ private:
         throw std::logic_error(error);
     }
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "ConstantParameter"
     static void BFSReachableTiles(Maze<SearchablePipeSegment>& worksheet, int startX = 0, int startY = 0) {
+#pragma clang diagnostic pop
         std::queue<std::pair<int, int>> coordinateQueue;
         coordinateQueue.emplace(startX, startY);
 
@@ -485,12 +544,12 @@ private:
                     case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
                     case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
                     case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode"
                     default: throw std::logic_error("Impossible travel direction given by tryTravel().");
+#pragma clang diagnostic pop
                 }
             } while (! (x == outerX && y == outerY));
-
-            std::cout << "after\n";
-            std::cout << outer << "\n";
         }
         {
             int x = innerX;
@@ -505,12 +564,12 @@ private:
                     case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
                     case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
                     case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode"
                     default: throw std::logic_error("Impossible travel direction given by tryTravel().");
+#pragma clang diagnostic pop
                 }
             } while (! (x == innerX && y == innerY));
-
-            std::cout << "after\n";
-            std::cout << inner << "\n";
         }
     }
 };
