@@ -101,34 +101,32 @@ public:
     }
 
     void v1() const override {
-        int manhattanSum = 0;
-        for (int i = 0; i < galaxies.size(); ++i) {
-            for (int j = i+1; j < galaxies.size(); ++j) {
-                manhattanSum += galaxies[i].manhattanDistance(galaxies[j]);
-            }
-        }
-
-        reportSolution(manhattanSum);
+        reportSolution(sumManhattanDistanceOfGalaxyPairs<int32_t>(galaxies));
     }
 
     void v2() const override {
-        int64_t manhattanSum = 0;
-        for (int i = 0; i < veryExpandedGalaxies.size(); ++i) {
-            for (int j = i+1; j < veryExpandedGalaxies.size(); ++j) {
-                manhattanSum += veryExpandedGalaxies[i].manhattanDistance(veryExpandedGalaxies[j]);
-            }
-        }
-
-        reportSolution(manhattanSum);
+        reportSolution(sumManhattanDistanceOfGalaxyPairs<int64_t>(veryExpandedGalaxies));
     }
 
     void parseBenchReset() override {
-
+        galaxies.clear();
+        veryExpandedGalaxies.clear();
     }
 
 private:
+    template<typename Integer>
+    static inline Integer sumManhattanDistanceOfGalaxyPairs(const std::vector<Galaxy>& gs) {
+        Integer sum = 0;
+        for (int i = 0; i < gs.size(); ++i) {
+            for (int j = i+1; j < gs.size(); ++j) {
+                sum += gs[i].manhattanDistance(gs[j]);
+            }
+        }
+        return sum;
+    }
+
     std::vector<Galaxy> galaxies;
-    std::vector<Galaxy> veryExpandedGalaxies; // problem 2. since we do not want to mutate the vector, we should parse in the 2 variants.
+    std::vector<Galaxy> veryExpandedGalaxies; // problem 2. since we do not want to mutate the vector after parsing once, we should parse in the 2 variants separately.
 };
 
 } // namespace
