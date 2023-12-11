@@ -13,6 +13,7 @@
 #include "day_8/day_8.hpp"
 #include "day_9/day_9.hpp"
 #include "day_10/day_10.hpp"
+#include "day_11/day_11.hpp"
 
 enum class ExitCodes {
     OK = 0,
@@ -31,21 +32,21 @@ std::map<int, std::function<std::unique_ptr<Day>()>> day_constructor_functions =
         { 8, [](){ return std::make_unique<Day8>(); } },
         { 9, [](){ return std::make_unique<Day9>(); } },
         { 10,[](){ return std::make_unique<Day10::Day10>(); } },
-        { 11,[](){ return std::make_unique<Day11>(); } },
-        { 12,[](){ return std::make_unique<Day12>(); } },
-        { 13,[](){ return std::make_unique<Day13>(); } },
-        { 14,[](){ return std::make_unique<Day14>(); } },
-        { 15,[](){ return std::make_unique<Day15>(); } },
-        { 16,[](){ return std::make_unique<Day16>(); } },
-        { 17,[](){ return std::make_unique<Day17>(); } },
-        { 18,[](){ return std::make_unique<Day18>(); } },
-        { 19,[](){ return std::make_unique<Day19>(); } },
-        { 20,[](){ return std::make_unique<Day20>(); } },
-        { 21,[](){ return std::make_unique<Day21>(); } },
-        { 22,[](){ return std::make_unique<Day22>(); } },
-        { 23,[](){ return std::make_unique<Day23>(); } },
-        { 24,[](){ return std::make_unique<Day24>(); } },
-        { 25,[](){ return std::make_unique<Day25>(); } },
+        { 11,[](){ return std::make_unique<Day11::Day11>(); } },
+        { 12,[](){ return std::make_unique<Day12::Day12>(); } },
+        { 13,[](){ return std::make_unique<Day13::Day13>(); } },
+        { 14,[](){ return std::make_unique<Day14::Day14>(); } },
+        { 15,[](){ return std::make_unique<Day15::Day15>(); } },
+        { 16,[](){ return std::make_unique<Day16::Day16>(); } },
+        { 17,[](){ return std::make_unique<Day17::Day17>(); } },
+        { 18,[](){ return std::make_unique<Day18::Day18>(); } },
+        { 19,[](){ return std::make_unique<Day19::Day19>(); } },
+        { 20,[](){ return std::make_unique<Day20::Day20>(); } },
+        { 21,[](){ return std::make_unique<Day21::Day21>(); } },
+        { 22,[](){ return std::make_unique<Day22::Day22>(); } },
+        { 23,[](){ return std::make_unique<Day23::Day23>(); } },
+        { 24,[](){ return std::make_unique<Day24::Day24>(); } },
+        { 25,[](){ return std::make_unique<Day25::Day25>(); } },
 };
 
 int main(int argc, char** argv) {

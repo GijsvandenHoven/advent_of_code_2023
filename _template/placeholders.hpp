@@ -3,7 +3,7 @@
 #include <filesystem>
 #include "../util/macros.hpp"
 
-#define PLACEHOLD(DAY) CLASS_DEF(DAY) {             \
+#define PLACEHOLD(DAY) NAMESPACE_DEF(DAY) { CLASS_DEF(DAY) { \
 public: DEFAULT_CTOR_DEF(DAY)                       \
     void parse(std::ifstream&) override {           \
         throw std::runtime_error("Not Implemented");\
@@ -17,7 +17,7 @@ public: DEFAULT_CTOR_DEF(DAY)                       \
     void v2() const override {                      \
         throw std::runtime_error("Not Implemented");\
     }                                               \
-};
+};}
 
 // to get main to compile. As classes for days get created, placeholders get commented out.
 
@@ -31,7 +31,7 @@ public: DEFAULT_CTOR_DEF(DAY)                       \
 //PLACEHOLD(8)
 //PLACEHOLD(9)
 //PLACEHOLD(10)
-PLACEHOLD(11)
+//PLACEHOLD(11)
 PLACEHOLD(12)
 PLACEHOLD(13)
 PLACEHOLD(14)

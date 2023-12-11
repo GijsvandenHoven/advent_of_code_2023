@@ -7,11 +7,13 @@
 
 #define DAY 0
 
+NAMESPACE_DEF(DAY) {
+
 CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
 
-    void parse(std::ifstream& input) override {
+    void parse(std::ifstream &input) override {
 
     }
 
@@ -29,5 +31,7 @@ public:
 
 private:
 };
+
+} // namespace
 
 #undef DAY

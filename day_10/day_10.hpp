@@ -8,7 +8,7 @@
 
 #define DAY 10
 
-namespace Day10 { // todo: eval namespacing my shit.
+namespace Day10 {
 
 constexpr uint8_t none_bit = 0;
 constexpr uint8_t left_bit = 1 << 0;
@@ -262,14 +262,11 @@ public:
     }
 
     void v2() const override {
-        static int count = 0;
-        std::cout << count++ << "\n";
         Maze<PipeSegment> explodedMaze;
         explodeMaze(explodedMaze);
 
         Maze<SearchablePipeSegment> BFSWorksheet; // fully blank maze, to be painted by the loop detection process.
 
-        std::cout << "make work sheet\t";
         BFSWorksheet.reserve(explodedMaze.size());
         for (auto& row : explodedMaze) {
             BFSWorksheet.emplace_back();
@@ -278,17 +275,13 @@ public:
             }
         }
 
-        std::cout << "make work sheet\t";
         auto BFSWorksheetOuter = BFSWorksheet; // copy
         auto BFSWorksheetInner = std::move(BFSWorksheet); // and move.
 
-        std::cout << "double BFS loop check\t";
         doDoubleLoopCheckOnExplodedMaze(explodedMaze, BFSWorksheetOuter, BFSWorksheetInner);
-        std::cout << "BFS\t";
         BFSReachableTiles(BFSWorksheetOuter);
         BFSReachableTiles(BFSWorksheetInner);
 
-        std::cout << "Shrink\t";
         // for every 'virtual' tile, the 2x2 block representing one tile in the exploded maze.
         // Count it as explored if _either_ of the worksheets could reach it.
         // Conversely, if neither worksheet could reach it, it is unreachable.
@@ -337,7 +330,6 @@ public:
             }
         }
 
-        std::cout << "final count\t";
         int enclosedTiles = 0;
         for (int i = 1; i < shrunkDown.size() - 1; ++i) {
             for (int j = 1; j < shrunkDown[i].size() - 1; ++j) {
