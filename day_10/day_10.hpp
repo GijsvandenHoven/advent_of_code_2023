@@ -32,6 +32,7 @@ using PipeTypeEnumType = std::underlying_type_t<PipeType>;
 
 struct PipeSegment {
     explicit PipeSegment(PipeType &&p) : type_(p) {}
+    PipeSegment() { ; } // Intentionally uninitialized memory. NOLINT(*-pro-type-member-init)
 
     [[nodiscard]] bool hasLeft() const { return static_cast<PipeTypeEnumType>(type_) & left_bit; }
 
@@ -81,11 +82,8 @@ public:
 struct SearchablePipeSegment : public PipeSegment {
     bool visited = false;
 
-    // May be used for searching algos. They are expected to clean up after themselves,
-    // i.e. there is never a 'dirty' SPG object present in a container passed to a searching algorithm.
-    bool dirty = false;
-
     explicit SearchablePipeSegment(PipeType &&p) : PipeSegment(std::forward<PipeType>(p)) {}
+    SearchablePipeSegment() : PipeSegment() {}
 };
 
 std::ostream& operator<<(std::ostream& os, const PipeType& pt) {
@@ -261,51 +259,62 @@ public:
     }
 
     void v2() const override {
-//        std::cout << "SEPARATOR\n\n";
-        Maze<SearchablePipeSegment> BFSWorksheet;
-        BFSWorksheet.reserve(maze.size());
-        for (auto& row : maze) {
+        Maze<PipeSegment> explodedMaze;
+        explodeMaze(explodedMaze);
+
+        Maze<SearchablePipeSegment> BFSWorksheet; // fully blank maze, to be painted by the loop detection process.
+
+        BFSWorksheet.reserve(explodedMaze.size());
+        for (auto& row : explodedMaze) {
             BFSWorksheet.emplace_back();
-            for(int i = 0; i < row.size(); ++i) {
+            for (int i = 0; i < row.size(); ++i) {
                 BFSWorksheet.back().emplace_back(PipeType::NONE);
             }
         }
 
-        int x = startX;
-        int y = startY;
-        auto cameFrom = Direction::NONE;
-        do {
-            auto& place = maze.at(x, y);
-            BFSWorksheet.at(x, y) = SearchablePipeSegment{place.type()};
-            cameFrom = tryTravel(place, cameFrom);
-            switch (cameFrom) {
-                case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
-                case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
-                case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
-                case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
-                default: throw std::logic_error("Impossible travel direction given by tryTravel().");
-            }
-        } while (! (x == startX && y == startY));
+        std::cout << "maze:\n" << maze << "\n";
+        std::cout << "exploded:\n" << explodedMaze << "\n";
 
-        std::cout << "Before:\n\n" << BFSWorksheet << "\n";
+        auto BFSWorksheetOuter = BFSWorksheet; // copy
+        auto BFSWorksheetInner = std::move(BFSWorksheet); // and move.
 
-        // We can safely start our search in 0,0: Since the entire maze has a perimeter added for OOB checks on the loop,
-        // we can re-use it as a guaranteed encirclement of the pipes.
-        BFSReachableTiles(BFSWorksheet);
-        DFSReachableWallSqueezingTiles(BFSWorksheet);
-
-        std::cout << "After:\n\n" << BFSWorksheet << "\n";
-
-        int unreachables = 0;
-        for (auto& row : BFSWorksheet) {
-            for (auto& item : row) {
-                if (!item.visited && item.type() == PipeType::NONE) {
-                    unreachables++;
-                }
-            }
-        }
-
-        reportSolution(unreachables);
+        doDoubleLoopCheckOnExplodedMaze(explodedMaze, BFSWorksheetOuter, BFSWorksheetInner);
+//
+//        int x = startX;
+//        int y = startY;
+//        auto cameFrom = Direction::NONE;
+//        do {
+//            auto& place = maze.at(x, y);
+//            explodedMaze.at(x, y) = SearchablePipeSegment{place.type()};
+//            cameFrom = tryTravel(place, cameFrom);
+//            switch (cameFrom) {
+//                case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
+//                case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
+//                case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
+//                case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
+//                default: throw std::logic_error("Impossible travel direction given by tryTravel().");
+//            }
+//        } while (! (x == startX && y == startY));
+//
+//        std::cout << "Before:\n\n" << explodedMaze << "\n";
+//
+//        // We can safely start our search in 0,0: Since the entire maze has a perimeter added for OOB checks on the loop,
+//        // we can re-use it as a guaranteed encirclement of the pipes.
+//        BFSReachableTiles(explodedMaze);
+//
+//        std::cout << "After:\n\n" << explodedMaze << "\n";
+//
+//        int unreachables = 0;
+//        for (auto& row : explodedMaze) {
+//            for (auto& item : row) {
+//                if (!item.visited && item.type() == PipeType::NONE) {
+//                    unreachables++;
+//                }
+//            }
+//        }
+//
+//        reportSolution(unreachables);
+        reportSolution(0);
     }
 
     void parseBenchReset() override {
@@ -363,57 +372,146 @@ private:
         }
     }
 
-    /**
-     * Tries to connect any unvisited tiles to visited tiles with DFS.
-     * Will "squeeze" between walls to try and connect.
-     * Assumes there exists an "outer blob" of visited tiles. No OOB checking is made on indexing the work sheet.
-     */
-    static void DFSReachableWallSqueezingTiles(Maze<SearchablePipeSegment>& worksheet) {
-        std::vector<std::pair<int, int>> work;
-
-        int y = 0;
-        for (auto& row : worksheet) {
-            int x = 0;
-            for (auto& item : row) {
-                if (! item.visited && item.type() == PipeType::NONE) {
-                    work.emplace_back(x, y);
-                }
-                x++;
-            }
-            y++;
+    // 'blow up' a maze to 2x its size. PipeSegments are extended appropriately, for example:
+    // 'F'     'J'    '|'
+    // becomes:
+    //  'F-'   'J|'   '||'
+    //  '|F'   '-J'   '||'
+    void explodeMaze(Maze<PipeSegment>& worksheet) const {
+        worksheet.resize(maze.size() * 2);
+        for (int i = 0; i < worksheet.size(); ++i) {
+            auto& row = worksheet[i];
+            row.resize((maze[i/2].size()) * 2);
         }
 
-        std::cout << "DFS workload is " << work.size() << "\n";
+        for (int i = 0; i < maze.size(); ++i) {
+            for (int j = 0; j < maze[i].size(); ++j) {
+                int p = i * 2;
+                int q = j * 2;
+                auto& toExplode = maze[i][j];
 
-        for (auto& [wx, wy] : work) {
-            DFSReachableWallSqueezingSingleTile(worksheet, wx, wy);
-            exit(-1);
+                switch(toExplode.type()) {
+                    default:
+                        throw std::logic_error("Cannot explode PipeSegment of type " + std::to_string(static_cast<PipeTypeEnumType>(toExplode.type())));
+                    case PipeType::NONE:
+                        worksheet[p][q] = PipeSegment(PipeType::NONE);
+                        worksheet[p][q+1] = PipeSegment(PipeType::NONE);
+                        worksheet[p+1][q] = PipeSegment(PipeType::NONE);
+                        worksheet[p+1][q+1] = PipeSegment(PipeType::NONE);
+                        break;
+                    case PipeType::LEFTRIGHT:
+                        worksheet[p][q] = PipeSegment(PipeType::LEFTRIGHT);
+                        worksheet[p][q+1] = PipeSegment(PipeType::LEFTRIGHT);
+                        worksheet[p+1][q] = PipeSegment(PipeType::LEFTRIGHT);
+                        worksheet[p+1][q+1] = PipeSegment(PipeType::LEFTRIGHT);
+                        break;
+                    case PipeType::UPDOWN:
+                        worksheet[p][q] = PipeSegment(PipeType::UPDOWN);
+                        worksheet[p][q+1] = PipeSegment(PipeType::UPDOWN);
+                        worksheet[p+1][q] = PipeSegment(PipeType::UPDOWN);
+                        worksheet[p+1][q+1] = PipeSegment(PipeType::UPDOWN);
+                        break;
+                    case PipeType::LEFTUP:
+                        worksheet[p][q] = PipeSegment(PipeType::LEFTUP);
+                        worksheet[p][q+1] = PipeSegment(PipeType::UPDOWN);
+                        worksheet[p+1][q] = PipeSegment(PipeType::LEFTRIGHT);
+                        worksheet[p+1][q+1] = PipeSegment(PipeType::LEFTUP);
+                        break;
+                    case PipeType::UPRIGHT:
+                        worksheet[p][q] = PipeSegment(PipeType::UPDOWN);
+                        worksheet[p][q+1] = PipeSegment(PipeType::UPRIGHT);
+                        worksheet[p+1][q] = PipeSegment(PipeType::UPRIGHT);
+                        worksheet[p+1][q+1] = PipeSegment(PipeType::LEFTRIGHT);
+                        break;
+                    case PipeType::RIGHTDOWN:
+                        worksheet[p][q] = PipeSegment(PipeType::RIGHTDOWN);
+                        worksheet[p][q+1] = PipeSegment(PipeType::LEFTRIGHT);
+                        worksheet[p+1][q] = PipeSegment(PipeType::UPDOWN);
+                        worksheet[p+1][q+1] = PipeSegment(PipeType::RIGHTDOWN);
+                        break;
+                    case PipeType::DOWNLEFT:
+                        worksheet[p][q] = PipeSegment(PipeType::LEFTRIGHT);
+                        worksheet[p][q+1] = PipeSegment(PipeType::DOWNLEFT);
+                        worksheet[p+1][q] = PipeSegment(PipeType::DOWNLEFT);
+                        worksheet[p+1][q+1] = PipeSegment(PipeType::UPDOWN);
+                        break;
+                }
+            }
         }
     }
 
-    // helper of DFSReachableWallSqueezingTiles. Same ideas apply, works from a single starting tile
-    static bool DFSReachableWallSqueezingSingleTile(Maze<SearchablePipeSegment>& worksheet, int x, int y) {
-        auto& here = worksheet.at(x, y);
-        here.dirty = true;
-        // try each adjacent tile including diagonals: May I go here?
-        const std::array<std::pair<int, int>, 8> coords{{ {x-1,y-1}, {x,y-1}, {x+1,y-1}, {x-1,y}, {x+1,y}, {x-1,y+1}, {x, y+1}, {x+1,y+1} }};
-        bool foundConnection = false;
-        for (auto [nx, ny] : coords) {
-            auto& neighbour = worksheet.at(nx, ny);
-            if (neighbour.visited) {
-                return true;
-            }
-            if (! neighbour.dirty) { // todo: ALL the rules for crossing.
-                // can I go from here to neighbour?
-                bool connects = DFSReachableWallSqueezingSingleTile(worksheet, nx, ny);
-                if (connects) {
-                    foundConnection = true;
+    void doDoubleLoopCheckOnExplodedMaze(const Maze<PipeSegment>& explodedMaze, Maze<SearchablePipeSegment>& outer, Maze<SearchablePipeSegment>& inner) const {
+        int outerX;
+        int innerX;
+        int outerY;
+        int innerY;
+        { // find which of the pieces in a 4 block segment is not connected to this.
+            outerX = startX * 2;
+            outerY = startY * 2;
+            auto& tile = explodedMaze.at(outerX, outerY);
+            switch(tile.type()) {
+                case PipeType::UPDOWN:
+                    innerX = outerX + 1;
+                    innerY = outerY;
                     break;
-                }
+                case PipeType::LEFTRIGHT:
+                    innerX = outerX;
+                    innerY = outerY + 1;
+                    break;
+                case PipeType::DOWNLEFT:
+                    throw std::logic_error("7 in top left of exploded maze");
+                case PipeType::RIGHTDOWN:
+                case PipeType::LEFTUP:
+                    innerX = outerX + 1;
+                    innerY = outerY + 1; // really only need to inc one of these but let's start on the same symbol just cause.
+                    break;
+                case PipeType::UPRIGHT:
+                    throw std::logic_error("L in top left of exploded maze");
+                default:
+                    throw std::logic_error("Unknown PipeType for start tile.");
             }
         }
 
-        return foundConnection;
+        {
+            int x = outerX;
+            int y = outerY;
+            auto cameFrom = Direction::NONE;
+            do {
+                auto& place = explodedMaze.at(x, y);
+                outer.at(x, y) = SearchablePipeSegment{place.type()};
+                cameFrom = tryTravel(place, cameFrom);
+                switch (cameFrom) {
+                    case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
+                    case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
+                    case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
+                    case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
+                    default: throw std::logic_error("Impossible travel direction given by tryTravel().");
+                }
+            } while (! (x == outerX && y == outerY));
+
+            std::cout << "after\n";
+            std::cout << outer << "\n";
+        }
+        {
+            int x = innerX;
+            int y = innerY;
+            auto cameFrom = Direction::NONE;
+            do {
+                auto& place = explodedMaze.at(x, y);
+                inner.at(x, y) = SearchablePipeSegment{place.type()};
+                cameFrom = tryTravel(place, cameFrom);
+                switch (cameFrom) {
+                    case Direction::UP:     y--; cameFrom = Direction::DOWN;    break;
+                    case Direction::DOWN:   y++; cameFrom = Direction::UP;      break;
+                    case Direction::LEFT:   x--; cameFrom = Direction::RIGHT;   break;
+                    case Direction::RIGHT:  x++; cameFrom = Direction::LEFT;    break;
+                    default: throw std::logic_error("Impossible travel direction given by tryTravel().");
+                }
+            } while (! (x == innerX && y == innerY));
+
+            std::cout << "after\n";
+            std::cout << inner << "\n";
+        }
     }
 };
 
