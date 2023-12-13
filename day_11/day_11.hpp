@@ -83,7 +83,7 @@ public:
                 }
             }
         }
-        { // problem 1 error correction
+        { // problem 2 error correction
             // correct coordinates for columns
             int offset = 0;
             for (int i = 0; i < columnGalaxyCount.size(); ++i) {
