@@ -55,11 +55,13 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
             }
             cols.emplace_back(c);
         }
+
+        std::cout << "This object has " << rows.size() << " rows and " << cols.size() << "cols.\n";
     }
 
     [[nodiscard]] int tryVerticalMirror () const {
 
-        for (int splitPoint = 1; splitPoint < cols.size() - 1; ++splitPoint) {
+        for (int splitPoint = 1; splitPoint < cols.size(); ++splitPoint) {
             bool mirrors = true;
             for (auto& row : rows) {
                 if (! checkMirror(row, splitPoint, static_cast<int>(cols.size()))) {
@@ -76,7 +78,7 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
     }
 
     [[nodiscard]] int tryHorizontalMirror () const {
-        for (int splitPoint = 1; splitPoint < rows.size() - 1; ++splitPoint) {
+        for (int splitPoint = 1; splitPoint < rows.size(); ++splitPoint) {
             bool mirrors = true;
             for (auto& col : cols) {
                 if (! checkMirror(col, splitPoint, static_cast<int>(rows.size()))) {
@@ -224,3 +226,15 @@ private:
 // bool mirrors = MirrorableBitfield::checkMirror(0b1100110011ULL, 5, 10); // passing.
 // bool mirrors = MirrorableBitfield::checkMirror(0b10101111ULL, 7, 8); // passing.
 //std::cout << "mirrors ? " << mirrors << "\n";
+
+/*
+.##......
+###.####.
+##.##...#
+..###..##
+...##..##
+#..#.##.#
+..#......
+.##..##..
+.##..##..
+ */
