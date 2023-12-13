@@ -39,129 +39,49 @@ struct SpringRecord {
         return result;
     }
 
+    static void strmem(const std::vector<char>& m) {
+        std::cout << "mem: "; for (auto&& c : m) std::cout << c; std::cout << "\n";
+    }
+
     [[nodiscard]] int64_t recursiveCount(
             int recordIndex,
             int numbersIndex,
             std::vector<char>& recordMemory
     ) const {
         if (recordIndex >= data.size()) {
-            //std::cout << "\t\t SEQ END, check legal: ";
+            strmem(recordMemory);
             bool ok = sequenceIsLegal(recordMemory); // recursion base case. This sequence is maybe possible.
-            //std::cout << (ok ? "yes" : "no") << "\n";
+
+//            if (ok) { // caching results for later.
+//
+//            }
+
             return ok; // 0 or 1 is intentional here. it's either possible, or not...
         }
 
         char c = data[recordIndex];
-        //std::cout << "\tnext op '" << c << "' ...\n";
         switch(c) {
-            case '.':
-                if (recordMemory.back() == '#') { // sequence of numbers end.
-                    // was this sequence as expected?
-                    int expected = numbers[numbersIndex];
-                    int count = 0;
-                    for (auto it = recordMemory.rbegin(); it != recordMemory.rend() && (*it == '#'); ++it) {
-                        ++count;
-                    }
-                    if (count != expected) {
-                        //std::cout << "\t\tAfter a '.' that came after '#', the sequence was illegal. Have: " << count << ", expected: " << expected << "\n";
-                        return 0;
-                    }
-
-                    numbersIndex++; // go to the next number since this sequence is completed.
-                }
-                recordMemory.emplace_back(c);
+            case '.': {
+                auto [cont, retVal] = handleDot(numbersIndex, recordMemory);
+                if (!cont) return retVal;
                 break;
+            }
             case '#': {
-                if (numbersIndex >= numbers.size()) { // found another sequence, but we are out of numbers representing them. Impossible.
-                    return 0;
-                }
-                recordMemory.emplace_back(c);
-                // check legality of this by comparing the current cluster to the recent number.
-                int seqEnd = recordIndex + 1;
-                while (seqEnd < data.size() && data[seqEnd] == '#') { // check the data if the future is still possible.
-                    seqEnd++;
-                }
-                int seqStart = recordIndex - 1;
-                while (seqStart >= 0 && recordMemory[seqStart] == '#') { // check the memory, for decisions we made in the past.
-                    seqStart--;
-                }
-                int minlen = (seqEnd - 1) - seqStart;
-                while (seqEnd < data.size() && (data[seqEnd] == '#' || data[seqEnd] == '?')) { // check more if it's possible.
-                    seqEnd++;
-                }
-                int maxlen = (seqEnd - 1) - seqStart;
-
-                int recentNumber = numbers[numbersIndex];
-                if (recentNumber < minlen || recentNumber > maxlen) {
-                    //std::cout << "\t\tAfter a normal '#', this sequence was found illegal.\n";
-                    //std::cout << "\t\tExpected " << recentNumber << ", got : [" << minlen << ", " << maxlen << "]\n";
-                    return 0; // We are on a path of creating an impossible sequence.
-                }
+                auto [cont, retVal] = handlePound(numbersIndex, recordIndex, recordMemory);
+                if (!cont) return retVal;
                 break;
             }
             case '?': {
-                int64_t totalPossible = 0;
-                // let's try '.', how much is possible?
-                {
-                    bool sequenceEnder = recordMemory.back() == '#';
-                    bool legal = true;
-                    recordMemory.emplace_back('.');
-                    // check legality of this move.
-                    if (sequenceEnder) {
-                        legal = sequenceIsLegal(recordMemory);
-                    }
-
-                    //std::cout << "\t\tRecurse on ? with '.', is it legal? " << legal << "\n";
-                    if (legal) { // filled in a ., continue ahead to count possibilities.
-
-                        int64_t options = recursiveCount(
-                                recordIndex + 1,
-                                numbersIndex + sequenceEnder,
-                                recordMemory
-                        );
-
-                        totalPossible += options;
-                        //std::cout << "\t\tnew count after recurse on ? with . -> " << totalPossible << "\n";
-                    }
-                    // clean up after recursion (or just illegal adding of a '.'), recordMemory was mutated.
-                    // We want a memory from 0 up to but not incl. recordIndex.
-                    recordMemory.erase(recordMemory.begin() + recordIndex, recordMemory.end());
-                }
-                // let's try '#', how much is possible?
-                {
-                    recordMemory.emplace_back('#');
-                    bool legal = sequenceIsLegal(recordMemory);
-                    // std::cout << "\t\tRecurse on ? with '#', is it legal? " << legal << "\n";
-                    if (legal) {
-                        int64_t options = recursiveCount(
-                                recordIndex + 1,
-                                numbersIndex,
-                                recordMemory
-                        );
-
-                        totalPossible += options;
-                    }
-                    // clean up after recursion (or just illegal adding of a '.'), recordMemory was mutated.
-                    // We want a memory from 0 up to but not incl. recordIndex.
-                    recordMemory.erase(recordMemory.begin() + recordIndex, recordMemory.end());
-                }
-
-                return totalPossible;
+                return handleQuestion(numbersIndex, recordIndex, recordMemory);
             }
             default: throw std::logic_error("Impossible char.");
         }
 
         // so far so good. let's try the next character.
-        //std::cout << "\t\tgo deeper...\n";
         return recursiveCount(recordIndex + 1, numbersIndex, recordMemory);
     }
 
     [[nodiscard]] bool sequenceIsLegal(const std::vector<char>& partialSequence) const {
-        //std::cout << "\t\t\tchck legal: ";
-        //for (auto&& c : partialSequence) std::cout << c;
-        //std::cout << " w.r.t. ";
-        //for (auto&& v  : numbers) std::cout << v << ",";
-        //std::cout << "\n";
 
         if (partialSequence.size() > data.size()) return false;
 
@@ -201,6 +121,100 @@ struct SpringRecord {
                 return true; // looks good so far.
             }
         }
+    }
+
+    [[nodiscard]] std::pair<bool, int64_t> handleDot(int& numbersIndex, std::vector<char>& recordMemory) const {
+        if (recordMemory.back() == '#') { // sequence of numbers end.
+            // was this sequence as expected?
+            int expected = numbers[numbersIndex];
+            int count = 0;
+            for (auto it = recordMemory.rbegin(); it != recordMemory.rend() && (*it == '#'); ++it) {
+                ++count;
+            }
+            if (count != expected) {
+                return std::make_pair(false, 0);
+            }
+
+            numbersIndex++; // go to the next number since this sequence is completed.
+        }
+        recordMemory.emplace_back('.');
+        return std::make_pair(true, 0);
+    }
+
+    [[nodiscard]] std::pair<bool, int64_t> handlePound(int& numbersIndex, int& recordIndex, std::vector<char>& recordMemory) const {
+        if (numbersIndex >= numbers.size()) { // found another sequence, but we are out of numbers representing them. Impossible.
+            return std::make_pair(false, 0);
+        }
+        recordMemory.emplace_back('#');
+        // check legality of this by comparing the current cluster to the recent number.
+        int seqEnd = recordIndex + 1;
+        while (seqEnd < data.size() && data[seqEnd] == '#') { // check the data if the future is still possible.
+            seqEnd++;
+        }
+        int seqStart = recordIndex - 1;
+        while (seqStart >= 0 && recordMemory[seqStart] == '#') { // check the memory, for decisions we made in the past.
+            seqStart--;
+        }
+        int minlen = (seqEnd - 1) - seqStart;
+        while (seqEnd < data.size() && (data[seqEnd] == '#' || data[seqEnd] == '?')) { // check more if it's possible.
+            seqEnd++;
+        }
+        int maxlen = (seqEnd - 1) - seqStart;
+
+        int recentNumber = numbers[numbersIndex];
+        if (recentNumber < minlen || recentNumber > maxlen) {
+            return std::make_pair(false, 0); // We are on a path of creating an impossible sequence.
+        }
+
+        return std::make_pair(true, 0);
+    }
+
+    [[nodiscard]] int64_t handleQuestion(int& numbersIndex, int& recordIndex, std::vector<char>& recordMemory) const {
+        int64_t totalPossible = 0;
+        // let's try '#', how much is possible?
+        {
+            recordMemory.emplace_back('#');
+            bool legal = sequenceIsLegal(recordMemory);
+            // std::cout << "\t\tRecurse on ? with '#', is it legal? " << legal << "\n";
+            if (legal) {
+                int64_t options = recursiveCount(
+                        recordIndex + 1,
+                        numbersIndex,
+                        recordMemory
+                );
+
+                totalPossible += options;
+            }
+            // clean up after recursion (or just illegal adding of a '.'), recordMemory was mutated.
+            // We want a memory from 0 up to but not incl. recordIndex.
+            recordMemory.erase(recordMemory.begin() + recordIndex, recordMemory.end());
+        }
+        // let's try '.', how much is possible?
+        {
+            bool sequenceEnder = recordMemory.back() == '#';
+            bool legal = true;
+            recordMemory.emplace_back('.');
+            // check legality of this move.
+            if (sequenceEnder) {
+                legal = sequenceIsLegal(recordMemory);
+            }
+
+            if (legal) { // filled in a ., continue ahead to count possibilities.
+
+                int64_t options = recursiveCount(
+                        recordIndex + 1,
+                        numbersIndex + sequenceEnder,
+                        recordMemory
+                );
+
+                totalPossible += options;
+            }
+            // clean up after recursion (or just illegal adding of a '.'), recordMemory was mutated.
+            // We want a memory from 0 up to but not incl. recordIndex.
+            recordMemory.erase(recordMemory.begin() + recordIndex, recordMemory.end());
+        }
+
+        return totalPossible;
     }
 };
 
