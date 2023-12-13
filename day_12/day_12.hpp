@@ -31,12 +31,23 @@ struct SpringRecord {
         std::vector<char> recordMemory;
         recordMemory.reserve(data.size());
 
-        //std::cout << "Recursive backtracking on '" << data << "'...\n";
+        std::vector<std::vector<int>> cache; // if pound symbol i can be placed legally at position j, the result is the value in this vector.
+        cache.resize(std::accumulate(numbers.begin(), numbers.end(), 0, [](int s, auto&& i) { return s + i; }));
+        std::for_each(cache.begin(), cache.end(), [this](auto& vec) {
+            vec.resize(data.size(), -1);
+        });
 
-        int64_t result = recursiveCount(recordIndex, numbersIndex, recordMemory);
-        //std::cout << "FOUND " << result << " FOR " << data << "\n";
 
-        return result;
+        int64_t cachelessResult = recursiveCount(recordIndex, numbersIndex, recordMemory, cache, false);
+        recordMemory.clear();
+        int64_t result = recursiveCount(recordIndex, numbersIndex, recordMemory, cache, true);
+
+        if (cachelessResult != result) {
+            std::cout << "Correct: " << cachelessResult << ", cache: " << result << "\n";
+            std::cout << '\t' << data << "\n";
+        }
+
+        return cachelessResult;
     }
 
     static void strmem(const std::vector<char>& m) {
@@ -46,15 +57,17 @@ struct SpringRecord {
     [[nodiscard]] int64_t recursiveCount(
             int recordIndex,
             int numbersIndex,
-            std::vector<char>& recordMemory
+            std::vector<char>& recordMemory,
+            std::vector<std::vector<int>>& cache,
+            bool useCache
     ) const {
         if (recordIndex >= data.size()) {
-            strmem(recordMemory);
+            // std::cout << "end reached .. "; strmem(recordMemory);
             bool ok = sequenceIsLegal(recordMemory); // recursion base case. This sequence is maybe possible.
 
-//            if (ok) { // caching results for later.
-//
-//            }
+            if (ok && useCache) { // caching results for later.
+                updateCache(recordMemory, cache);
+            }
 
             return ok; // 0 or 1 is intentional here. it's either possible, or not...
         }
@@ -72,13 +85,13 @@ struct SpringRecord {
                 break;
             }
             case '?': {
-                return handleQuestion(numbersIndex, recordIndex, recordMemory);
+                return handleQuestion(numbersIndex, recordIndex, recordMemory, cache, useCache);
             }
             default: throw std::logic_error("Impossible char.");
         }
 
         // so far so good. let's try the next character.
-        return recursiveCount(recordIndex + 1, numbersIndex, recordMemory);
+        return recursiveCount(recordIndex + 1, numbersIndex, recordMemory, cache, useCache);
     }
 
     [[nodiscard]] bool sequenceIsLegal(const std::vector<char>& partialSequence) const {
@@ -169,7 +182,7 @@ struct SpringRecord {
         return std::make_pair(true, 0);
     }
 
-    [[nodiscard]] int64_t handleQuestion(int& numbersIndex, int& recordIndex, std::vector<char>& recordMemory) const {
+    [[nodiscard]] int64_t handleQuestion(int& numbersIndex, int& recordIndex, std::vector<char>& recordMemory, std::vector<std::vector<int>>& cache, bool useCache) const {
         int64_t totalPossible = 0;
         // let's try '#', how much is possible?
         {
@@ -177,13 +190,30 @@ struct SpringRecord {
             bool legal = sequenceIsLegal(recordMemory);
             // std::cout << "\t\tRecurse on ? with '#', is it legal? " << legal << "\n";
             if (legal) {
-                int64_t options = recursiveCount(
-                        recordIndex + 1,
-                        numbersIndex,
-                        recordMemory
-                );
+                // is the result of placing # here known to the cache?
+                // todo: keep count of # yourself maybe? idk.
+                int poundCount = 0;
+                for (auto&& c : recordMemory) {
+                    if (c == '#') ++poundCount;
+                }
+                auto cacheValue = cache[poundCount-1][recordIndex];
+                // std::cout << "\tcache check for # num " << poundCount << " at " << recordIndex << "\n";
+                if (useCache && cacheValue != -1) {
+                    //std::cout << "\thit for " << cacheValue << "\n";
+                    //std::cout << "\t\t"; strmem(recordMemory);
+                    totalPossible += cacheValue;
+                } else {
+                    // std::cout << "\tmiss.\n";
+                    int64_t options = recursiveCount(
+                            recordIndex + 1,
+                            numbersIndex,
+                            recordMemory,
+                            cache,
+                            useCache
+                    );
 
-                totalPossible += options;
+                    totalPossible += options;
+                }
             }
             // clean up after recursion (or just illegal adding of a '.'), recordMemory was mutated.
             // We want a memory from 0 up to but not incl. recordIndex.
@@ -204,7 +234,9 @@ struct SpringRecord {
                 int64_t options = recursiveCount(
                         recordIndex + 1,
                         numbersIndex + sequenceEnder,
-                        recordMemory
+                        recordMemory,
+                        cache,
+                        useCache
                 );
 
                 totalPossible += options;
@@ -215,6 +247,19 @@ struct SpringRecord {
         }
 
         return totalPossible;
+    }
+
+    static void updateCache(const std::vector<char>& recordMemory, std::vector<std::vector<int>>& cache) {
+        //std::cout << "\tcaching... "; strmem(recordMemory); std::cout << "\n";
+        int poundSymbol = 0;
+        for (int i = 0; i < recordMemory.size(); ++i) {
+            if (recordMemory[i] == '#') {
+                int& value = cache[poundSymbol][i];
+                value = (value == -1 ? 1 : value + 1);
+                //std::cout << "\t\twrite " << value << " to " << poundSymbol << ", " << i << "\n";
+                poundSymbol++;
+            }
+        }
     }
 };
 
