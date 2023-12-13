@@ -25,25 +25,30 @@ struct SpringRecord {
         }
     }
 
-    [[nodiscard]] int countPossibleRecords() const {
+    [[nodiscard]] int64_t countPossibleRecords() const {
         int recordIndex = 0;
         int numbersIndex = 0;
         std::vector<char> recordMemory;
         recordMemory.reserve(data.size());
 
-        std::cout << "Recursive backtracking on '" << data << "'...\n";
+        //std::cout << "Recursive backtracking on '" << data << "'...\n";
 
-        int result = recursiveCount(recordIndex, numbersIndex, recordMemory);
-        std::cout << "FOUND " << result << " FOR " << data << "\n";
+        int64_t result = recursiveCount(recordIndex, numbersIndex, recordMemory);
+        //std::cout << "FOUND " << result << " FOR " << data << "\n";
+
         return result;
     }
 
-    [[nodiscard]] int recursiveCount(int recordIndex, int numbersIndex, std::vector<char>& recordMemory) const {
+    [[nodiscard]] int64_t recursiveCount(
+            int recordIndex,
+            int numbersIndex,
+            std::vector<char>& recordMemory
+    ) const {
         if (recordIndex >= data.size()) {
             //std::cout << "\t\t SEQ END, check legal: ";
             bool ok = sequenceIsLegal(recordMemory); // recursion base case. This sequence is maybe possible.
             //std::cout << (ok ? "yes" : "no") << "\n";
-            return ok;
+            return ok; // 0 or 1 is intentional here. it's either possible, or not...
         }
 
         char c = data[recordIndex];
@@ -95,7 +100,7 @@ struct SpringRecord {
                 break;
             }
             case '?': {
-                int totalPossible = 0;
+                int64_t totalPossible = 0;
                 // let's try '.', how much is possible?
                 {
                     bool sequenceEnder = recordMemory.back() == '#';
@@ -108,7 +113,14 @@ struct SpringRecord {
 
                     //std::cout << "\t\tRecurse on ? with '.', is it legal? " << legal << "\n";
                     if (legal) { // filled in a ., continue ahead to count possibilities.
-                        totalPossible += recursiveCount(recordIndex + 1, numbersIndex + sequenceEnder, recordMemory);
+
+                        int64_t options = recursiveCount(
+                                recordIndex + 1,
+                                numbersIndex + sequenceEnder,
+                                recordMemory
+                        );
+
+                        totalPossible += options;
                         //std::cout << "\t\tnew count after recurse on ? with . -> " << totalPossible << "\n";
                     }
                     // clean up after recursion (or just illegal adding of a '.'), recordMemory was mutated.
@@ -119,10 +131,15 @@ struct SpringRecord {
                 {
                     recordMemory.emplace_back('#');
                     bool legal = sequenceIsLegal(recordMemory);
-                    //std::cout << "\t\tRecurse on ? with '#', is it legal? " << legal << "\n";
+                    // std::cout << "\t\tRecurse on ? with '#', is it legal? " << legal << "\n";
                     if (legal) {
-                        totalPossible += recursiveCount(recordIndex + 1, numbersIndex, recordMemory);
-                        //std::cout << "\t\tnew count after recurse on ? with # -> " << totalPossible << "\n";
+                        int64_t options = recursiveCount(
+                                recordIndex + 1,
+                                numbersIndex,
+                                recordMemory
+                        );
+
+                        totalPossible += options;
                     }
                     // clean up after recursion (or just illegal adding of a '.'), recordMemory was mutated.
                     // We want a memory from 0 up to but not incl. recordIndex.
@@ -187,6 +204,24 @@ struct SpringRecord {
     }
 };
 
+struct UnfoldedSpringRecord : public SpringRecord {
+    explicit UnfoldedSpringRecord(const std::string& toUnfold) : SpringRecord(unfold(toUnfold)) {}
+
+    static std::string unfold(const std::string& folded) {
+        std::istringstream s(folded);
+        std::string data;
+        std::string nums;
+
+        s >> data;
+        s >> nums;
+
+        data = data + '?' + data + '?' + data + '?' + data + '?' + data;
+        nums = nums + ',' + nums + ',' + nums + ',' + nums + ',' + nums;
+
+        return data + ' ' + nums;
+    }
+};
+
 std::ostream& operator<<(std::ostream& os, const SpringRecord& s) {
     os << "SpringRecord {\n\t";
     os << s.data << "\n\t";
@@ -203,6 +238,7 @@ public:
         std::string line;
         while (std::getline(input, line)) {
             records.emplace_back(line);
+            unfoldedRecords.emplace_back(line);
         }
     }
 
@@ -214,15 +250,21 @@ public:
     }
 
     void v2() const override {
+//        int sum = std::accumulate(unfoldedRecords.begin(), unfoldedRecords.end(), 0, [](int s, auto& item){
+//            return s + item.countPossibleRecords();
+//        });
+//        reportSolution(sum);
         reportSolution(0);
     }
 
     void parseBenchReset() override {
-
+        records.clear();
+        unfoldedRecords.clear();
     }
 
 private:
     std::vector<SpringRecord> records;
+    std::vector<UnfoldedSpringRecord> unfoldedRecords;
 };
 
 } // namespace
