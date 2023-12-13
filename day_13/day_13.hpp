@@ -55,8 +55,6 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
             }
             cols.emplace_back(c);
         }
-
-        std::cout << "This object has " << rows.size() << " rows and " << cols.size() << "cols.\n";
     }
 
     [[nodiscard]] int tryVerticalMirror () const {
