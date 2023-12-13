@@ -10,6 +10,8 @@
 NAMESPACE_DEF(DAY) {
 
 struct SpringRecord {
+    using StateMap = std::map<std::tuple<int, int, int>, int64_t>;
+
     std::string data;
     std::vector<int> numbers;
 
@@ -30,55 +32,80 @@ struct SpringRecord {
         int numbersIndex = 0;
         int currentBlockSize = 0;
 
-        auto res = recursiveCount(recordIndex, numbersIndex, currentBlockSize);
+        StateMap cache;
+        auto res = recursiveCount(recordIndex, numbersIndex, currentBlockSize, cache, true);
         std::cout << res << "\n";
         return res;
     }
 
-    [[nodiscard]] int64_t recursiveCount(int recordIndex, int numbersIndex, int currentBlockSize) const {
+    [[nodiscard]] int64_t recursiveCount(int recordIndex, int numbersIndex, int currentBlockSize, StateMap& cache, const bool useCache) const {
+        { // search the cache first, any early exit possible?
+            auto state = std::make_tuple(recordIndex, numbersIndex, currentBlockSize);
+            auto iter = cache.find(state);
+            if (iter != cache.end()) {
+                return iter->second;
+            }
+        }
+
         if (recordIndex == data.size()) {
             bool blockTerminatedLegal = numbersIndex == numbers.size() - 1 && currentBlockSize == numbers.back(); // 1 block left but it's finished, actually.
             bool dotTerminatedLegal = numbersIndex == numbers.size() && currentBlockSize == 0; // out of blocks and no ongoing one.
 
-            return blockTerminatedLegal || dotTerminatedLegal;
+            bool legal = blockTerminatedLegal || dotTerminatedLegal;
+
+            cache.emplace(std::make_tuple(recordIndex, numbersIndex, currentBlockSize), legal);
+
+            return legal;
         }
 
         char c = data[recordIndex];
 
         switch (c) {
-            case '#':
+            case '#': {
+                int64_t ret;
                 if (numbersIndex == numbers.size()) { // out of blocks, yet trying to add to it? impossible.
-                    return 0;
+                    ret = 0;
                 } else if (currentBlockSize == numbers[numbersIndex]) { // adding to the block would overflow here.
-                    return 0;
+                    ret = 0;
                 } else { // expand block (or start one)
-                    return recursiveCount(recordIndex + 1, numbersIndex, currentBlockSize + 1);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex, currentBlockSize + 1, cache, useCache);
                 }
-            case '.':
+                cache.emplace(std::make_tuple(recordIndex, numbersIndex, currentBlockSize), ret);
+                return ret;
+            }
+            case '.': {
+                int64_t ret;
                 if (currentBlockSize != 0 && currentBlockSize != numbers[numbersIndex]) { // end of existing block but not the right size.
-                    return 0;
+                    ret = 0;
                 } else if (currentBlockSize == 0) { // no ongoing block.
-                    return recursiveCount(recordIndex + 1, numbersIndex, 0);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex, 0, cache, useCache);
                 } else if (numbersIndex == numbers.size()) { // nonzero blocksize, but out of numbers? illegal.
-                    return 0;
+                    ret = 0;
                 } else { // nonzero blocksize, so this '.' finishes the block.
-                    return recursiveCount(recordIndex + 1, numbersIndex + 1, 0);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex + 1, 0, cache, useCache);
                 }
-            case '?':
+                cache.emplace(std::make_tuple(recordIndex, numbersIndex, currentBlockSize), ret);
+                return ret;
+            }
+            case '?': {
+                int64_t ret;
                 if (numbersIndex == numbers.size()) { // out of spring blocks, this can only be a .
-                    return recursiveCount(recordIndex + 1, numbersIndex, 0);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex, 0, cache, useCache);
                 } else if (currentBlockSize == numbers[numbersIndex]) { // must be a ., or we violate the block size. Also start a new block.
-                    return recursiveCount(recordIndex + 1, numbersIndex + 1, 0);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex + 1, 0, cache, useCache);
                 } else if (currentBlockSize > 0 && currentBlockSize < numbers[numbersIndex]) { // ongoing block must be continued.
-                    return recursiveCount(recordIndex + 1, numbersIndex, currentBlockSize + 1);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex, currentBlockSize + 1, cache, useCache);
                 } else { // no ongoing block, could be both. So try both.
                     if (currentBlockSize != 0) throw std::logic_error("nonzero block size?");
 
-                    auto a = recursiveCount(recordIndex + 1, numbersIndex, 1);
-                    auto b = recursiveCount(recordIndex + 1, numbersIndex, 0);
+                    auto a = recursiveCount(recordIndex + 1, numbersIndex, 1, cache, useCache);
+                    auto b = recursiveCount(recordIndex + 1, numbersIndex, 0, cache, useCache);
 
-                    return a + b;
+                    ret = a + b;
                 }
+                cache.emplace(std::make_tuple(recordIndex, numbersIndex, currentBlockSize), ret);
+                return ret;
+            }
             default: throw std::logic_error("Unexpected char in recursive count.");
         }
     }
@@ -130,11 +157,10 @@ public:
     }
 
     void v2() const override {
-//        int sum = std::accumulate(unfoldedRecords.begin(), unfoldedRecords.end(), 0, [](int s, auto& item){
-//            return s + item.countPossibleRecords();
-//        });
-//        reportSolution(sum);
-        reportSolution(0);
+        int sum = std::accumulate(unfoldedRecords.begin(), unfoldedRecords.end(), 0, [](int s, auto& item){
+            return s + item.countPossibleRecords();
+        });
+        reportSolution(sum);
     }
 
     void parseBenchReset() override {
