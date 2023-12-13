@@ -33,7 +33,7 @@ struct SpringRecord {
         int currentBlockSize = 0;
 
         StateMap cache;
-        auto res = recursiveCount(recordIndex, numbersIndex, currentBlockSize, cache, true);
+        auto res = recursiveCount(recordIndex, numbersIndex, currentBlockSize, cache);
         return res;
     }
 
