@@ -34,12 +34,18 @@ struct SpringRecord {
 
         StateMap cache;
         auto res = recursiveCount(recordIndex, numbersIndex, currentBlockSize, cache, true);
-        std::cout << res << "\n";
+        cache.clear(); // redundant but let's do it anyway.
+        auto slowButSteadyRes = recursiveCount(recordIndex, numbersIndex, currentBlockSize, cache, false);
+        if (res != slowButSteadyRes) {
+            std::cout << "mismatch: " << slowButSteadyRes << " but cache gives " << res << "\n";
+        } else {
+            std::cout << "match: " << res << "\n";
+        }
         return res;
     }
 
     [[nodiscard]] int64_t recursiveCount(int recordIndex, int numbersIndex, int currentBlockSize, StateMap& cache, const bool useCache) const {
-        { // search the cache first, any early exit possible?
+        if (useCache) { // search the cache first, any early exit possible?
             auto state = std::make_tuple(recordIndex, numbersIndex, currentBlockSize);
             auto iter = cache.find(state);
             if (iter != cache.end()) {
@@ -150,14 +156,15 @@ public:
     }
 
     void v1() const override {
-        int sum = std::accumulate(records.begin(), records.end(), 0, [](int s, auto& item){
-            return s + item.countPossibleRecords();
-        });
-        reportSolution(sum);
+//        int sum = std::accumulate(records.begin(), records.end(), 0, [](int s, auto& item){
+//            return s + item.countPossibleRecords();
+//        });
+//        reportSolution(sum);
+        reportSolution(0);
     }
 
     void v2() const override {
-        int sum = std::accumulate(unfoldedRecords.begin(), unfoldedRecords.end(), 0, [](int s, auto& item){
+        int64_t sum = std::accumulate(unfoldedRecords.begin(), unfoldedRecords.end(), 0ll, [](int s, auto& item){
             return s + item.countPossibleRecords();
         });
         reportSolution(sum);
