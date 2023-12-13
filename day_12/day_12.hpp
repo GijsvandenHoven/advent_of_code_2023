@@ -34,18 +34,11 @@ struct SpringRecord {
 
         StateMap cache;
         auto res = recursiveCount(recordIndex, numbersIndex, currentBlockSize, cache, true);
-        cache.clear(); // redundant but let's do it anyway.
-        auto slowButSteadyRes = recursiveCount(recordIndex, numbersIndex, currentBlockSize, cache, false);
-        if (res != slowButSteadyRes) {
-            std::cout << "mismatch: " << slowButSteadyRes << " but cache gives " << res << "\n";
-        } else {
-            std::cout << "match: " << res << "\n";
-        }
         return res;
     }
 
-    [[nodiscard]] int64_t recursiveCount(int recordIndex, int numbersIndex, int currentBlockSize, StateMap& cache, const bool useCache) const {
-        if (useCache) { // search the cache first, any early exit possible?
+    [[nodiscard]] int64_t recursiveCount(int recordIndex, int numbersIndex, int currentBlockSize, StateMap& cache) const {
+        { // search the cache first, any early exit possible?
             auto state = std::make_tuple(recordIndex, numbersIndex, currentBlockSize);
             auto iter = cache.find(state);
             if (iter != cache.end()) {
@@ -74,7 +67,7 @@ struct SpringRecord {
                 } else if (currentBlockSize == numbers[numbersIndex]) { // adding to the block would overflow here.
                     ret = 0;
                 } else { // expand block (or start one)
-                    ret = recursiveCount(recordIndex + 1, numbersIndex, currentBlockSize + 1, cache, useCache);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex, currentBlockSize + 1, cache);
                 }
                 cache.emplace(std::make_tuple(recordIndex, numbersIndex, currentBlockSize), ret);
                 return ret;
@@ -84,11 +77,11 @@ struct SpringRecord {
                 if (currentBlockSize != 0 && currentBlockSize != numbers[numbersIndex]) { // end of existing block but not the right size.
                     ret = 0;
                 } else if (currentBlockSize == 0) { // no ongoing block.
-                    ret = recursiveCount(recordIndex + 1, numbersIndex, 0, cache, useCache);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex, 0, cache);
                 } else if (numbersIndex == numbers.size()) { // nonzero blocksize, but out of numbers? illegal.
                     ret = 0;
                 } else { // nonzero blocksize, so this '.' finishes the block.
-                    ret = recursiveCount(recordIndex + 1, numbersIndex + 1, 0, cache, useCache);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex + 1, 0, cache);
                 }
                 cache.emplace(std::make_tuple(recordIndex, numbersIndex, currentBlockSize), ret);
                 return ret;
@@ -96,16 +89,16 @@ struct SpringRecord {
             case '?': {
                 int64_t ret;
                 if (numbersIndex == numbers.size()) { // out of spring blocks, this can only be a .
-                    ret = recursiveCount(recordIndex + 1, numbersIndex, 0, cache, useCache);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex, 0, cache);
                 } else if (currentBlockSize == numbers[numbersIndex]) { // must be a ., or we violate the block size. Also start a new block.
-                    ret = recursiveCount(recordIndex + 1, numbersIndex + 1, 0, cache, useCache);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex + 1, 0, cache);
                 } else if (currentBlockSize > 0 && currentBlockSize < numbers[numbersIndex]) { // ongoing block must be continued.
-                    ret = recursiveCount(recordIndex + 1, numbersIndex, currentBlockSize + 1, cache, useCache);
+                    ret = recursiveCount(recordIndex + 1, numbersIndex, currentBlockSize + 1, cache);
                 } else { // no ongoing block, could be both. So try both.
                     if (currentBlockSize != 0) throw std::logic_error("nonzero block size?");
 
-                    auto a = recursiveCount(recordIndex + 1, numbersIndex, 1, cache, useCache);
-                    auto b = recursiveCount(recordIndex + 1, numbersIndex, 0, cache, useCache);
+                    auto a = recursiveCount(recordIndex + 1, numbersIndex, 1, cache);
+                    auto b = recursiveCount(recordIndex + 1, numbersIndex, 0, cache);
 
                     ret = a + b;
                 }
@@ -156,15 +149,15 @@ public:
     }
 
     void v1() const override {
-//        int sum = std::accumulate(records.begin(), records.end(), 0, [](int s, auto& item){
-//            return s + item.countPossibleRecords();
-//        });
-//        reportSolution(sum);
+        int sum = std::accumulate(records.begin(), records.end(), 0, [](int s, auto& item){
+            return s + item.countPossibleRecords();
+        });
+        reportSolution(sum);
         reportSolution(0);
     }
 
     void v2() const override {
-        int64_t sum = std::accumulate(unfoldedRecords.begin(), unfoldedRecords.end(), 0ll, [](int s, auto& item){
+        int64_t sum = std::accumulate(unfoldedRecords.begin(), unfoldedRecords.end(), 0ll, [](int64_t s, auto& item){
             return s + item.countPossibleRecords();
         });
         reportSolution(sum);
