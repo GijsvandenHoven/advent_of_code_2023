@@ -106,8 +106,6 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
         auto right_mask = ~left_mask;
         auto right = (val & right_mask) << (64 - (size - splitPoint));
 
-        //std::cout << "left:\t" << std::bitset<64>(left) << "\nright:\t" << std::bitset<64>(right) << "\n";
-
         // left and right are now correctly occupying their position in a 64 bit int. Let's mirror 'right' and see if it equals 'left'.
         int64_t mirrored_right = 0;
         for (int i = 0; i < 8; ++i) {
@@ -116,13 +114,10 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
             mirrored_right |= rev << (56 - (i*8));
         }
 
-        //std::cout << "mirr:\t" << std::bitset<64>(mirrored_right) << "\n";
-
         // This is the section that should be equal with mirroring. we need to mask it on both values.
         // One of the two should be unaffected by this, the other truncated to the mirroring section.
         int domain = std::min(size - splitPoint, splitPoint);
         auto domainMask = all_ones >> (64 - domain);
-        //std::cout << "dom: " << domain << "\nmask:\t" << std::bitset<64>(domainMask) << "\n";
 
         // give the matching grade of the left compared to the right mirror. 0 is a perfect mirror. The more bits are on, the more is off.
         return (left & domainMask) ^ (mirrored_right & domainMask);
@@ -202,36 +197,3 @@ private:
 } // namespace
 
 #undef DAY
-
-
-// testing
-//        MirrorableBitfield::checkMirror(0b101, 2, 3); // 2 and (1 << 63)
-//        MirrorableBitfield::checkMirror(0b101, 1, 3); // 1 and (1 << 62)
-//        MirrorableBitfield::checkMirror(0b111, 2, 3); // 3 and (1 << 63)
-//        MirrorableBitfield::checkMirror(0b111, 1, 3); // 1 and (1 << 63) | (1 << 62)
-//        MirrorableBitfield::checkMirror(0b11101, 3, 5); // 7 and (1 << 62)
-//        MirrorableBitfield::checkMirror(0b111001, 3, 6); // 7 and (1 << 61)
-//        MirrorableBitfield::checkMirror(0b1110001, 3, 7); // 7 and (1 << 60)
-
-//constexpr auto ref = (1ull << 63);
-//std::cout << "\nreference sheet: 1 << 63 = " << ref << ", 1 << 62 = " << (ref >> 1) << ", 1 << 61 = " << (ref >> 2) << ", 1 << 60 = " << (ref >> 3) << "\n";
-
-// reportSolution(0);
-
-//##.####.######.##
-//bool mirrors = MirrorableBitfield::checkMirror(0b11011110111111011ULL, 11, 17); // failing.
-// bool mirrors = MirrorableBitfield::checkMirror(0b1100110011ULL, 5, 10); // passing.
-// bool mirrors = MirrorableBitfield::checkMirror(0b10101111ULL, 7, 8); // passing.
-//std::cout << "mirrors ? " << mirrors << "\n";
-
-/*
-.##......
-###.####.
-##.##...#
-..###..##
-...##..##
-#..#.##.#
-..#......
-.##..##..
-.##..##..
- */
