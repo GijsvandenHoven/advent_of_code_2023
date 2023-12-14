@@ -52,7 +52,17 @@ class TileGrid : public std::vector<std::vector<Tile>> {
 public:
     TileGrid() = default;
 
-    void simulateTiltCycle(std::map<std::string, int>& cache, int cycleCount) {
+    /**
+     * given an 'n' representing which tilt cycle it is and a cache:
+     *
+     * 1) Performs a tilt cycle (N-W-S-E), mutating the TileGrid.
+     * 2) stringifies the state of the TileGrid
+     * 3) checks this state with the cache.
+     *
+     * 4a) Returns true if this state exists in the cache, or
+     * 4b) Returns false and emplaces the state within the cache, if it does not.
+     */
+    [[nodiscard]] std::pair<bool, int> simulateTiltCycle(std::map<std::string, int>& cache, int cycleCount) {
         simulateTilt(Direction::NORTH);
         simulateTilt(Direction::WEST);
         simulateTilt(Direction::SOUTH);
@@ -63,9 +73,11 @@ public:
         std::string state = s.str();
         auto iter = cache.find(state);
         if (iter != cache.end()) {
-            std::cout << "AT CYCLE " << cycleCount << " A REPEATED STATE WAS FOUND. THIS WAS ORIGINALLY SEEN AT " << iter->second << "\n";
+            std::cout << "saw this b4: " << iter->second << " now at " << cycleCount << "\n";
+            return std::make_pair(true, iter->second);
         } else {
             cache.emplace(std::move(state), cycleCount);
+            return std::make_pair(false, 0);
         }
     }
 
@@ -243,9 +255,26 @@ public:
     void v2() const override {
         auto copy = tiles;
         std::map<std::string, int> cache;
-        for (int i = 0; i < 1000; ++i) {
-            copy.simulateTiltCycle(cache, i);
+
+        int lastCompletedCycle;
+        int steadyCycleStart;
+        int i = 1;
+        for ( ; i <= 1'000'000'000; ++i) {
+            auto [steadyStateDetected, firstSteadyCycle] = copy.simulateTiltCycle(cache, i);
+            if (steadyStateDetected) {
+                steadyCycleStart = firstSteadyCycle;
+                lastCompletedCycle = i;
+                break;
+            }
         }
+        if (i == 1'000'000'001) { // stop warning me about uninitialized variables if this happens IDE.
+            throw std::logic_error("You actually completed 1 billion iterations lmao.");
+        }
+
+        int stateModulo = (lastCompletedCycle - steadyCycleStart);
+        std::cout << "Found steady state at " << lastCompletedCycle << " which shows the first steady cycle was " << steadyCycleStart << "\n";
+        std::cout << "Thus there is a modulo of " << stateModulo << "\n";
+
         reportSolution(0);
     }
 
