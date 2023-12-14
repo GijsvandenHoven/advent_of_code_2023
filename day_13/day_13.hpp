@@ -62,7 +62,7 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
         for (int splitPoint = 1; splitPoint < cols.size(); ++splitPoint) {
             bool mirrors = true;
             for (auto& row : rows) {
-                if (! checkMirror(row, splitPoint, static_cast<int>(cols.size()))) {
+                if (0 != checkMirror(row, splitPoint, static_cast<int>(cols.size()))) {
                     mirrors = false;
                     break;
                 }
@@ -79,7 +79,7 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
         for (int splitPoint = 1; splitPoint < rows.size(); ++splitPoint) {
             bool mirrors = true;
             for (auto& col : cols) {
-                if (! checkMirror(col, splitPoint, static_cast<int>(rows.size()))) {
+                if (0 != checkMirror(col, splitPoint, static_cast<int>(rows.size()))) {
                     mirrors = false;
                     break;
                 }
@@ -92,7 +92,7 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
         return -1;
     }
 
-    [[nodiscard]] static bool checkMirror(uint64_t val, int splitPoint, int size) {
+    [[nodiscard]] static uint64_t checkMirror(uint64_t val, int splitPoint, int size) {
         static constexpr auto all_ones = ~0ULL;
         // bits on the left of the splitpoint:
         auto left_mask = (all_ones >> (64 - splitPoint)) << (size - splitPoint);
@@ -119,8 +119,8 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
         auto domainMask = all_ones >> (64 - domain);
         //std::cout << "dom: " << domain << "\nmask:\t" << std::bitset<64>(domainMask) << "\n";
 
-        // are they equal?
-        return (left & domainMask) == (mirrored_right & domainMask);
+        // give the matching grade of the left compared to the right mirror. 0 is a perfect mirror. The more bits are on, the more is off.
+        return (left & domainMask) ^ (mirrored_right & domainMask);
     }
 };
 
