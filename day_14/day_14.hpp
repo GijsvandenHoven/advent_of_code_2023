@@ -1,8 +1,5 @@
 #pragma once
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "UnreachableCode" // default branches of switches on enums that throw std::logic_error.
-
 #include <iostream>
 
 #include "../util/Day.hpp"
@@ -51,6 +48,7 @@ struct Tile {
 // todo remove
 class TileGrid;
 std::ostream& operator<<(std::ostream& os, const TileGrid& tg);
+std::ostream& operator<<(std::ostream& os, const Direction& d);
 
 class TileGrid : public std::vector<std::vector<Tile>> {
 public:
@@ -98,7 +96,7 @@ public:
             case Direction::EAST:
             case Direction::SOUTH:
                 for (int y = static_cast<int>(self.size()) - 1; y >= 0; --y) {
-                    for (int x = static_cast<int>(self[y].size()); x >= 0; --x) {
+                    for (int x = static_cast<int>(self[y].size()) - 1; x >= 0; --x) {
                         tileTiltSimulation(x, y, direction);
                     }
                 }
@@ -117,16 +115,6 @@ public:
             }
             weight--;
         }
-        return sum;
-    }
-
-    int countRocks() const { // used for debugging, my tilt function keeps eating rocks!
-        int sum = 0;
-        std::for_each(this->begin(), this->end(), [&sum](auto& row) {
-            std::for_each(row.begin(), row.end(), [&sum](auto& tile) {
-                sum += tile.rollingRock();
-            });
-        });
         return sum;
     }
 
@@ -197,6 +185,11 @@ private:
     }
 };
 
+std::ostream& operator<<(std::ostream& os, const Direction& d) {
+    switch(d) { case Direction::NORTH: os << "N"; break; case Direction::SOUTH: os << "S"; break; case Direction::WEST: os << "W"; break; case Direction::EAST: os << "E"; break; default: os << "?"; break; }
+    return os;
+}
+
 std::ostream& operator<<(std::ostream& os, const Object& o) {
     switch (o) { case Object::NONE: os << '.'; break; case Object::ROUND_ROCK: os << 'O'; break; case Object::SQUARE_ROCK: os << '#'; break; default: os << '?'; break; }
     return os;
@@ -241,7 +234,9 @@ public:
 
     void v2() const override {
         auto copy = tiles;
-        copy.simulateTiltCycle();
+        for (int i = 0; i < 1000; ++i) {
+            copy.simulateTiltCycle();
+        }
         reportSolution(0);
     }
 
@@ -256,4 +251,3 @@ private:
 } // namespace
 
 #undef DAY
-#pragma clang diagnostic pop
