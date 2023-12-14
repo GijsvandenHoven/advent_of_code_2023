@@ -45,9 +45,29 @@ struct Tile {
     }
 };
 
+// todo remove
+class TileGrid;
+std::ostream& operator<<(std::ostream& os, const TileGrid& tg);
+
 class TileGrid : public std::vector<std::vector<Tile>> {
 public:
     TileGrid() = default;
+
+    void simulateTiltCycle() {
+        std::cout << "n\n";
+        simulateTilt(Direction::NORTH);
+        std::cout << (*this) << "\n\n";
+        std::cout << "w\n";
+        simulateTilt(Direction::WEST);
+        std::cout << (*this) << "\n\n";
+        std::cout << "s\n";
+        simulateTilt(Direction::SOUTH);
+        std::cout << (*this) << "\n\n";
+        std::cout << "e\n";
+        simulateTilt(Direction::EAST);
+        std::cout << (*this) << "\n\n";
+        std::cout << "done\n";
+    }
 
     void simulateTilt(const Direction& direction) {
         auto& self = *this;
@@ -137,7 +157,7 @@ private:
                 if (x+1 == this->operator[](0).size()) return error();
                 return ok(x+1, y);
             case Direction::SOUTH:
-                if (x+1 == this->size()) return error();
+                if (y+1 == this->size()) return error();
                 return ok(x, y+1);
             case Direction::WEST:
                 if (x == 0) return error();
@@ -184,12 +204,17 @@ public:
     }
 
     void v1() const override {
-        auto copy = tiles; // immutability issue, simulating these rorcks rolling is definitely easier by mutating the vector so let's copy it.
+        auto copy = tiles; // immutability issue, simulating these rocks rolling is definitely easier by mutating the vector so let's copy it.
         copy.simulateTilt(Direction::NORTH);
         reportSolution(copy.northWeight());
     }
 
     void v2() const override {
+        auto copy = tiles;
+        std::cout << "0:\n" << copy << "\n";
+        copy.simulateTiltCycle();
+        std::cout << "1:\n" << copy << "\n";
+        std::cout << "v2 ogre\n";
         reportSolution(0);
     }
 
