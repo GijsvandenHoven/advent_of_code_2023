@@ -57,19 +57,10 @@ public:
     TileGrid() = default;
 
     void simulateTiltCycle() {
-        std::cout << "n\n";
         simulateTilt(Direction::NORTH);
-        std::cout << (*this) << "\n\n"; std::cout << this->countRocks();
-        std::cout << "w\n";
         simulateTilt(Direction::WEST);
-        std::cout << (*this) << "\n\n"; std::cout << this->countRocks();
-        std::cout << "s\n";
         simulateTilt(Direction::SOUTH);
-        std::cout << (*this) << "\n\n"; std::cout << this->countRocks();
-        std::cout << "e\n";
         simulateTilt(Direction::EAST);
-        std::cout << (*this) << "\n\n"; std::cout << this->countRocks();
-        std::cout << "done\n";
     }
 
     void simulateTilt(const Direction& direction) {
@@ -250,10 +241,7 @@ public:
 
     void v2() const override {
         auto copy = tiles;
-        std::cout << "0:\n" << copy << "\n";
         copy.simulateTiltCycle();
-        std::cout << "1:\n" << copy << "\n";
-        std::cout << "v2 ogre\n";
         reportSolution(0);
     }
 
