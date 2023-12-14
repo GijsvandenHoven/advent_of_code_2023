@@ -56,21 +56,23 @@ public:
     void simulateTiltCycle() {
         std::cout << "n\n";
         simulateTilt(Direction::NORTH);
-        std::cout << (*this) << "\n\n";
+        std::cout << (*this) << "\n\n"; std::cout << this->countRocks();
         std::cout << "w\n";
         simulateTilt(Direction::WEST);
-        std::cout << (*this) << "\n\n";
+        std::cout << (*this) << "\n\n"; std::cout << this->countRocks();
         std::cout << "s\n";
         simulateTilt(Direction::SOUTH);
-        std::cout << (*this) << "\n\n";
+        std::cout << (*this) << "\n\n"; std::cout << this->countRocks();
         std::cout << "e\n";
         simulateTilt(Direction::EAST);
-        std::cout << (*this) << "\n\n";
+        std::cout << (*this) << "\n\n"; std::cout << this->countRocks();
         std::cout << "done\n";
     }
 
     void simulateTilt(const Direction& direction) {
         auto& self = *this;
+
+
         for (int y = 0; y < self.size(); ++y) {
             for (int x = 0; x < self[y].size(); ++x) {
                 if (self[y][x].rollingRock()) {
@@ -81,6 +83,7 @@ public:
                     self.at(newX, newY) = Tile(Object::ROUND_ROCK);
                     // since directions are consistent for each rock it should be safe to update 'on the fly',
                     // before 'future' rocks roll this path. They would still encounter each rock.
+                    // This could also trigger rolls multiple times (picture going top to bottom on the array rolling south)
                 }
             }
         }
@@ -100,17 +103,29 @@ public:
         return sum;
     }
 
+    int countRocks() const { // used for debugging, my tilt function keeps eating rocks!
+        int sum = 0;
+        std::for_each(this->begin(), this->end(), [&sum](auto& row) {
+            std::for_each(row.begin(), row.end(), [&sum](auto& tile) {
+                sum += tile.rollingRock();
+            });
+        });
+        return sum;
+    }
+
     [[nodiscard]] const Tile& at(int x, int y) const { return this->operator[](y)[x]; }
     [[nodiscard]] Tile& at(int x, int y) { return this->operator[](y)[x]; }
 
 private:
     [[nodiscard]] std::pair<int, int> simulateRoll(int startX, int startY, const Direction& d) const {
+        std::cout << "roll sim with " << startX << ", " << startY << "\n";
         int x = startX;
         int y = startY;
         int offset = 0; // offset increases for every round rock found along the roll. They would occupy a space before the stopping space each.
 
         while (true) {
             auto [valid, xy] = adjacent(d, x, y);
+            std::cout << "\tadjacent func says v: " << valid << " ( " << xy.first << ", " << xy.second << " )\n";
             if (!valid) break; // going out of bounds, we are done.
 
             auto& current = this->at(xy.first, xy.second);
@@ -128,6 +143,7 @@ private:
             }
         }
         loopEnd:
+        std::cout << "\tloopEnd with variables x: " << x << ", y: " << y << ", offset: " << offset << "\n";
         switch (d) {
             default: throw std::logic_error("Unknown direction in simulateRoll.");
             case Direction::NORTH:
@@ -136,13 +152,14 @@ private:
             case Direction::SOUTH:
                 y -= offset;
                 break;
-            case Direction::EAST:
+            case Direction::WEST:
                 x += offset;
                 break;
-            case Direction::WEST:
+            case Direction::EAST:
                 x -= offset;
                 break;
         }
+        std::cout << "result " << x << ", " << y << "\n";
         return std::make_pair(x, y);
     }
 
@@ -204,17 +221,23 @@ public:
     }
 
     void v1() const override {
-        auto copy = tiles; // immutability issue, simulating these rocks rolling is definitely easier by mutating the vector so let's copy it.
-        copy.simulateTilt(Direction::NORTH);
-        reportSolution(copy.northWeight());
+//        auto copy = tiles; // immutability issue, simulating these rocks rolling is definitely easier by mutating the vector so let's copy it.
+//        copy.simulateTilt(Direction::NORTH);
+//        reportSolution(copy.northWeight());
+        reportSolution(0);
     }
 
     void v2() const override {
-        auto copy = tiles;
-        std::cout << "0:\n" << copy << "\n";
-        copy.simulateTiltCycle();
-        std::cout << "1:\n" << copy << "\n";
-        std::cout << "v2 ogre\n";
+//        auto copy = tiles;
+//        std::cout << "0:\n" << copy << "\n";
+//        copy.simulateTiltCycle();
+//        std::cout << "1:\n" << copy << "\n";
+//        std::cout << "v2 ogre\n";
+//        reportSolution(0);
+
+        auto copy = tiles; std::cout << copy << "\n";
+        copy.simulateTilt(Direction::SOUTH);
+        std::cout << copy << "\n";
         reportSolution(0);
     }
 
