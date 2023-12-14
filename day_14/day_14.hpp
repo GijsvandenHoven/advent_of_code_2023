@@ -36,10 +36,6 @@ struct Tile {
         }
     }
 
-    [[nodiscard]] bool occupied() const {
-        return o != Object::NONE;
-    }
-
     [[nodiscard]] bool rollingRock() const {
         return o == Object::ROUND_ROCK;
     }
