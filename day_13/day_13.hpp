@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <bitset>
+#include <bit>
 
 #include "../util/Day.hpp"
 #include "../util/macros.hpp"
@@ -60,15 +61,15 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
     // As per puzzle definition, number of columns left of the mirror point returned if vertical mirroring.
     // 100 times number of rows above mirror point returned if horizontal mirroring.
     // Error is thrown if neither.
-    [[nodiscard]] int searchMirror() const {
+    [[nodiscard]] int searchMirror(int tolerance) const {
         {
-            auto [found, verticalMirrorPoint] = tryMirror(rows, static_cast<int>(cols.size()));
+            auto [found, verticalMirrorPoint] = tryMirror(rows, static_cast<int>(cols.size()), tolerance);
             if (found) {
                 return verticalMirrorPoint;
             }
         }
         {
-            auto [found, horizontalMirrorPoint] = tryMirror(cols, static_cast<int>(rows.size()));
+            auto [found, horizontalMirrorPoint] = tryMirror(cols, static_cast<int>(rows.size()), tolerance);
             if (found) {
                 return horizontalMirrorPoint * 100;
             }
@@ -79,16 +80,16 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
 
     // Representing either rows or columns (passed as 'axis' vector) and number of items (bits) in the axis.
     // Example use: tryMirror(rows, cols.size()), tryMirror(cols, rows.size())
-    [[nodiscard]] static std::pair<bool, int> tryMirror(const std::vector<uint64_t>& axis, int n) {
+    [[nodiscard]] static std::pair<bool, int> tryMirror(const std::vector<uint64_t>& axis, const int n, const int tolerance) {
         for (int splitPoint = 1; splitPoint < n; ++splitPoint) {
-            bool mirrors = true;
+            int mirroringScore = tolerance;
             for (auto& item : axis) {
-                if (0 != checkMirror(item, splitPoint, n)) {
-                    mirrors = false;
-                    break;
-                }
+                auto leftXORright = checkMirror(item, splitPoint, n);
+                int mismatchedBits = std::popcount(leftXORright);
+                mirroringScore -= mismatchedBits;
+                // could early exit if mirroringScore goes negative but whatever. It might even be slower :)
             }
-            if (mirrors) {
+            if (mirroringScore == 0) { // only if the score is exactly 0, that is, the exact number of 'bit corrections / mismatches' were needed to satisfy this mirroring.
                 return std::make_pair(true, splitPoint);
             }
         }
@@ -177,13 +178,17 @@ public:
     void v1() const override {
         int64_t sum = 0;
         for (auto& field : fields) {
-            sum += field.searchMirror();
+            sum += field.searchMirror(0);
         }
         reportSolution(sum);
     }
 
     void v2() const override {
-        reportSolution(0);
+        int64_t sum = 0;
+        for (auto& field : fields) {
+            sum += field.searchMirror(1);
+        }
+        reportSolution(sum);
     }
 
     void parseBenchReset() override {
