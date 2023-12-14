@@ -45,20 +45,28 @@ struct Tile {
     }
 };
 
-// todo remove
 class TileGrid;
 std::ostream& operator<<(std::ostream& os, const TileGrid& tg);
-std::ostream& operator<<(std::ostream& os, const Direction& d);
 
 class TileGrid : public std::vector<std::vector<Tile>> {
 public:
     TileGrid() = default;
 
-    void simulateTiltCycle() {
+    void simulateTiltCycle(std::map<std::string, int>& cache, int cycleCount) {
         simulateTilt(Direction::NORTH);
         simulateTilt(Direction::WEST);
         simulateTilt(Direction::SOUTH);
         simulateTilt(Direction::EAST);
+
+        std::ostringstream s;
+        s << *this;
+        std::string state = s.str();
+        auto iter = cache.find(state);
+        if (iter != cache.end()) {
+            std::cout << "AT CYCLE " << cycleCount << " A REPEATED STATE WAS FOUND. THIS WAS ORIGINALLY SEEN AT " << iter->second << "\n";
+        } else {
+            cache.emplace(std::move(state), cycleCount);
+        }
     }
 
     void simulateTilt(const Direction& direction) {
@@ -234,8 +242,9 @@ public:
 
     void v2() const override {
         auto copy = tiles;
+        std::map<std::string, int> cache;
         for (int i = 0; i < 1000; ++i) {
-            copy.simulateTiltCycle();
+            copy.simulateTiltCycle(cache, i);
         }
         reportSolution(0);
     }
