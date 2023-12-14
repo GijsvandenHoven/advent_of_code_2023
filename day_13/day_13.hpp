@@ -57,39 +57,43 @@ struct MirrorableBitfield { // rows and cols represent the same 2d matrix of bit
         }
     }
 
-    [[nodiscard]] int tryVerticalMirror () const {
-
-        for (int splitPoint = 1; splitPoint < cols.size(); ++splitPoint) {
-            bool mirrors = true;
-            for (auto& row : rows) {
-                if (0 != checkMirror(row, splitPoint, static_cast<int>(cols.size()))) {
-                    mirrors = false;
-                    break;
-                }
+    // As per puzzle definition, number of columns left of the mirror point returned if vertical mirroring.
+    // 100 times number of rows above mirror point returned if horizontal mirroring.
+    // Error is thrown if neither.
+    [[nodiscard]] int searchMirror() const {
+        {
+            auto [found, verticalMirrorPoint] = tryMirror(rows, static_cast<int>(cols.size()));
+            if (found) {
+                return verticalMirrorPoint;
             }
-            if (mirrors) {
-                return splitPoint;
+        }
+        {
+            auto [found, horizontalMirrorPoint] = tryMirror(cols, static_cast<int>(rows.size()));
+            if (found) {
+                return horizontalMirrorPoint * 100;
             }
         }
 
-        return -1;
+        throw std::logic_error("No vertical or horizontal mirror point.");
     }
 
-    [[nodiscard]] int tryHorizontalMirror () const {
-        for (int splitPoint = 1; splitPoint < rows.size(); ++splitPoint) {
+    // Representing either rows or columns (passed as 'axis' vector) and number of items (bits) in the axis.
+    // Example use: tryMirror(rows, cols.size()), tryMirror(cols, rows.size())
+    [[nodiscard]] static std::pair<bool, int> tryMirror(const std::vector<uint64_t>& axis, int n) {
+        for (int splitPoint = 1; splitPoint < n; ++splitPoint) {
             bool mirrors = true;
-            for (auto& col : cols) {
-                if (0 != checkMirror(col, splitPoint, static_cast<int>(rows.size()))) {
+            for (auto& item : axis) {
+                if (0 != checkMirror(item, splitPoint, n)) {
                     mirrors = false;
                     break;
                 }
             }
             if (mirrors) {
-                return splitPoint;
+                return std::make_pair(true, splitPoint);
             }
         }
 
-        return -1;
+        return std::make_pair(false, -1);
     }
 
     [[nodiscard]] static uint64_t checkMirror(uint64_t val, int splitPoint, int size) {
@@ -173,17 +177,7 @@ public:
     void v1() const override {
         int64_t sum = 0;
         for (auto& field : fields) {
-            auto vertical = field.tryVerticalMirror();
-            auto horizontal = field.tryHorizontalMirror();
-
-            if (vertical == -1 && horizontal == -1) {
-                std::cout << field << "\n";
-                throw std::logic_error("No mirror point on this.");
-            } else if (vertical == -1) {
-                sum += 100 * horizontal;
-            } else {
-                sum += vertical;
-            }
+            sum += field.searchMirror();
         }
         reportSolution(sum);
     }
