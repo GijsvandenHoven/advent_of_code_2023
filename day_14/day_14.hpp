@@ -73,7 +73,6 @@ public:
         std::string state = s.str();
         auto iter = cache.find(state);
         if (iter != cache.end()) {
-            std::cout << "saw this b4: " << iter->second << " now at " << cycleCount << "\n";
             return std::make_pair(true, iter->second);
         } else {
             cache.emplace(std::move(state), cycleCount);
