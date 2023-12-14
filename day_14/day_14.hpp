@@ -1,5 +1,8 @@
 #pragma once
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode" // default branches of switches on enums that throw std::logic_error.
+
 #include <iostream>
 
 #include "../util/Day.hpp"
@@ -141,14 +144,12 @@ public:
 
 private:
     [[nodiscard]] std::pair<int, int> simulateRoll(int startX, int startY, const Direction& d) const {
-        std::cout << "roll sim with " << startX << ", " << startY << "\n";
         int x = startX;
         int y = startY;
         int offset = 0; // offset increases for every round rock found along the roll. They would occupy a space before the stopping space each.
 
         while (true) {
             auto [valid, xy] = adjacent(d, x, y);
-            std::cout << "\tadjacent func says v: " << valid << " ( " << xy.first << ", " << xy.second << " )\n";
             if (!valid) break; // going out of bounds, we are done.
 
             auto& current = this->at(xy.first, xy.second);
@@ -166,7 +167,6 @@ private:
             }
         }
         loopEnd:
-        std::cout << "\tloopEnd with variables x: " << x << ", y: " << y << ", offset: " << offset << "\n";
         switch (d) {
             default: throw std::logic_error("Unknown direction in simulateRoll.");
             case Direction::NORTH:
@@ -182,7 +182,6 @@ private:
                 x -= offset;
                 break;
         }
-        std::cout << "result " << x << ", " << y << "\n";
         return std::make_pair(x, y);
     }
 
@@ -244,23 +243,17 @@ public:
     }
 
     void v1() const override {
-//        auto copy = tiles; // immutability issue, simulating these rocks rolling is definitely easier by mutating the vector so let's copy it.
-//        copy.simulateTilt(Direction::NORTH);
-//        reportSolution(copy.northWeight());
-        reportSolution(0);
+        auto copy = tiles; // immutability issue, simulating these rocks rolling is definitely easier by mutating the vector so let's copy it.
+        copy.simulateTilt(Direction::NORTH);
+        reportSolution(copy.northWeight());
     }
 
     void v2() const override {
-//        auto copy = tiles;
-//        std::cout << "0:\n" << copy << "\n";
-//        copy.simulateTiltCycle();
-//        std::cout << "1:\n" << copy << "\n";
-//        std::cout << "v2 ogre\n";
-//        reportSolution(0);
-
-        auto copy = tiles; std::cout << copy << "\n";
-        copy.simulateTilt(Direction::SOUTH);
-        std::cout << copy << "\n";
+        auto copy = tiles;
+        std::cout << "0:\n" << copy << "\n";
+        copy.simulateTiltCycle();
+        std::cout << "1:\n" << copy << "\n";
+        std::cout << "v2 ogre\n";
         reportSolution(0);
     }
 
@@ -275,3 +268,4 @@ private:
 } // namespace
 
 #undef DAY
+#pragma clang diagnostic pop
