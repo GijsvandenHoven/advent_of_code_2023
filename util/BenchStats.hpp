@@ -161,7 +161,7 @@ inline std::ostream& operator<<(std::ostream& o, const BenchmarkStats& b) {
     << "\tMean (Median): " << b.format(b.mean()) << " (" << b.format(b.median()) << ")\n"
     << "\tStdDev: " << b.format(b.std_dev()) << "\n"
     << "\tlowest / highest: " << b.format(b.lowest()) << " / " << b.format(b.highest()) << "\n"
-    << "\t5/95 %-ile: " << b.format(b.nth_ile(0.05)) << " / " << b.format(b.nth_ile(0.95)) << "\n"
+    << "\t5/95 %-ile: " << b.format(b.nth_ile(0.05)) << " / " << b.format(b.nth_ile(0.95)) << "\n" // might have mixed up the definition of %-ile, maybe the labels should be swapped. oh well.
     //<< "\tCI (95% 2-sided)" << "\n" // excessive.
     << "}";
 
