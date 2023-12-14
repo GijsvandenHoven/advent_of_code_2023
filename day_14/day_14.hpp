@@ -253,13 +253,14 @@ public:
     }
 
     void v2() const override {
+        static constexpr int TARGET = 1'000'000'000;
         auto copy = tiles;
         std::map<std::string, int> cache;
 
         int lastCompletedCycle;
         int steadyCycleStart;
         int i = 1;
-        for ( ; i <= 1'000'000'000; ++i) {
+        for ( ; i <= TARGET; ++i) {
             auto [steadyStateDetected, firstSteadyCycle] = copy.simulateTiltCycle(cache, i);
             if (steadyStateDetected) {
                 steadyCycleStart = firstSteadyCycle;
@@ -267,15 +268,23 @@ public:
                 break;
             }
         }
-        if (i == 1'000'000'001) { // stop warning me about uninitialized variables if this happens IDE.
+        if (i == TARGET + 1) { // stop warning me about uninitialized variables if this happens IDE.
             throw std::logic_error("You actually completed 1 billion iterations lmao.");
         }
 
         int stateModulo = (lastCompletedCycle - steadyCycleStart);
-        std::cout << "Found steady state at " << lastCompletedCycle << " which shows the first steady cycle was " << steadyCycleStart << "\n";
-        std::cout << "Thus there is a modulo of " << stateModulo << "\n";
 
-        reportSolution(0);
+        // (target - offset) % modulo
+        int cycleOfTarget = (TARGET - steadyCycleStart) % stateModulo;
+        // while we could look up the state in the cache already and do the math on that string,
+        // I think it's easier if I just get to that cycle again and call the function that does it for me.
+
+        // We are currently on '0', we want to go to 'cycleOfTarget' which is in the range [0, modulo).
+        for (int j = 0; j < cycleOfTarget; ++j) {
+            (void) copy.simulateTiltCycle(cache, i + j + 1);
+        }
+
+        reportSolution(copy.northWeight());
     }
 
     void parseBenchReset() override {
