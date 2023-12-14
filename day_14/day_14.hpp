@@ -72,20 +72,43 @@ public:
     void simulateTilt(const Direction& direction) {
         auto& self = *this;
 
-
-        for (int y = 0; y < self.size(); ++y) {
-            for (int x = 0; x < self[y].size(); ++x) {
-                if (self[y][x].rollingRock()) {
-                    auto [newX, newY] = simulateRoll(x, y, direction);
-                    // update location. Do the 'setting this position empty' first, if the new location == this spot,
-                    // doing otherwise would break things.
-                    self.at(x, y) = Tile();
-                    self.at(newX, newY) = Tile(Object::ROUND_ROCK);
-                    // since directions are consistent for each rock it should be safe to update 'on the fly',
-                    // before 'future' rocks roll this path. They would still encounter each rock.
-                    // This could also trigger rolls multiple times (picture going top to bottom on the array rolling south)
-                }
+        /**
+         * This operation mutates the TileGrid simulating a tilt, given direction and x,y coordinates.
+         * Only rolling rocks are affected by the tilt.
+         * The operation is not aware of update order, so it could overwrite rocks not yet handled in isolation.
+         * (e.g. south tilt, operating on a top-to-bottom loop, could overwrite a rock that was not yet rolled,
+         * which is then rolled netting minus one rock.)
+         *
+         * Therefore the lambda should be called in the right loop structure. That is,
+         * 'normal' (top-bottom, left-right) for NORTH and WEST tilts.
+         * 'reverse' (bottom-top, right-left) for SOUTH and EAST tilts.
+         */
+        auto tileTiltSimulation = [&self](int x, int y, const Direction& direction) {
+            if (self.at(x, y).rollingRock()) {
+                auto [newX, newY] = self.simulateRoll(x, y, direction);
+                // first set old location to empty. If the new location == old location, doing otherwise would break things.
+                self.at(x, y) = Tile();
+                self.at(newX, newY) = Tile(Object::ROUND_ROCK);
             }
+        };
+
+        switch (direction) {
+            case Direction::NORTH:
+            case Direction::WEST:
+                for (int y = 0; y < self.size(); ++y) {
+                    for (int x = 0; x < self[y].size(); ++x) {
+                        tileTiltSimulation(x, y, direction);
+                    }
+                }
+                break;
+            case Direction::EAST:
+            case Direction::SOUTH:
+                for (int y = static_cast<int>(self.size()) - 1; y >= 0; --y) {
+                    for (int x = static_cast<int>(self[y].size()); x >= 0; --x) {
+                        tileTiltSimulation(x, y, direction);
+                    }
+                }
+                break;
         }
     }
 
