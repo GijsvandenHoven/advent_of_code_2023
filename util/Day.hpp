@@ -20,7 +20,7 @@ class Day {
 public:
     Day() = delete;
     virtual ~Day() = default;
-    explicit Day(int number) : Day("day_" + std::to_string(number) + "/day" + std::to_string(number) + ".txt") {}
+    explicit Day(int number) : Day((number < 10 ? "day_0" : "day_") + std::to_string(number) + "/day" + std::to_string(number) + ".txt") {}
 
     explicit Day(const std::string& inputFilePath) {
         auto p = std::filesystem::path(inputFilePath).make_preferred();

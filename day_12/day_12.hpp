@@ -153,7 +153,6 @@ public:
             return s + item.countPossibleRecords();
         });
         reportSolution(sum);
-        reportSolution(0);
     }
 
     void v2() const override {

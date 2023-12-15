@@ -68,10 +68,10 @@ public:
     [[nodiscard]] T &at(int x, int y) { return this->operator[](y)[x]; }
 
     [[nodiscard]] std::pair<bool, T*> safeAt(int x, int y) {
-        if (x < 0 || x >= this->operator[](y).size()) {
+        if (y < 0 || y >= this->size()) {
             return std::make_pair(false, nullptr);
         }
-        if (y < 0 || y >= this->size()) {
+        if (x < 0 || x >= this->operator[](y).size()) {
             return std::make_pair(false, nullptr);
         }
 
