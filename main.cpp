@@ -18,6 +18,7 @@
 #include "day_13/day_13.hpp"
 #include "day_14/day_14.hpp"
 #include "day_15/day_15.hpp"
+#include "day_16/day_16.hpp"
 
 enum class ExitCodes {
     OK = 0,
