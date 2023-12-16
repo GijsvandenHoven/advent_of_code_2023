@@ -8,6 +8,8 @@
 
 #define DAY 16
 
+#define PROBLEM_2_USE_OPENMP true
+
 NAMESPACE_DEF(DAY) {
 
 enum class Direction : uint8_t {
@@ -136,17 +138,24 @@ public:
             }
         };
 
-#pragma omp parallel for schedule(static) default(none) shared(updateMax)
+#if PROBLEM_2_USE_OPENMP
+#pragma omp parallel default(none) shared(updateMax, std::cout, max)
+#endif
+        {
+
+#pragma omp for schedule(static) nowait
         for (int i = 0; i < XYSIZE.first; ++i) {
             updateMax(i, 0, Direction::DOWN);
             updateMax(i, XYSIZE.second - 1, Direction::UP);
         }
 
-#pragma omp parallel for schedule(static) default(none) shared(updateMax, std::cout)
+#pragma omp for schedule(static) nowait
         for (int i = 0; i < XYSIZE.second; ++i) {
             updateMax(0, i, Direction::RIGHT);
             updateMax(XYSIZE.first - 1, i, Direction::LEFT);
         }
+
+        } // pragma omp parallel
 
         reportSolution(max);
     }
