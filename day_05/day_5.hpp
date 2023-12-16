@@ -29,7 +29,7 @@ class NumberMapper {
 public:
     NumberMapper() = default;
 
-    int64_t remap(int64_t input) const {
+    [[nodiscard]] int64_t remap(int64_t input) const {
         int64_t current = input;
         std::for_each(remapping_sequence.begin(), remapping_sequence.end(), [&](auto& remapper) {
             auto remap = remapper(current);
@@ -219,7 +219,6 @@ public:
                         new_output.push_back(input_range);
                     }
                 }
-                auto printVec = [](auto& v){ for(auto& x : v)std::cout<<x<<", "; };
                 // prune duplicate ranges produced by the inner procedure.
                 output.clear();
                 std::for_each(new_output.begin(), new_output.end(), [&output](const Range& r) {
