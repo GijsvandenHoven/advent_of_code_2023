@@ -142,10 +142,8 @@ public:
             updateMax(i, XYSIZE.second - 1, Direction::UP);
         }
 
-        std::cout << "i have " << omp_get_max_threads() << " threads\n";
 #pragma omp parallel for schedule(static) default(none) shared(updateMax, std::cout)
         for (int i = 0; i < XYSIZE.second; ++i) {
-            std::cout << "thread " << omp_get_thread_num() << "\n";
             updateMax(0, i, Direction::RIGHT);
             updateMax(XYSIZE.first - 1, i, Direction::LEFT);
         }

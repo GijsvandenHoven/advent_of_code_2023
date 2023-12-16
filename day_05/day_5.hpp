@@ -241,8 +241,6 @@ public:
 
         reportSolution(global_min);
 #else
-        parseInput(input);
-
         std::istringstream seed_reader(seed_string_numbers);
 
         std::vector<std::pair<int64_t, int64_t>> seed_groups;
@@ -266,6 +264,7 @@ public:
 
 #pragma omp parallel for schedule(static) shared(std::cout, seed, range, results) default(none)
             for (int64_t s = seed; s < seed + range; ++s) {
+                std::osyncstream(std::cout) << omp_get_thread_num() << "\n";
                 uint64_t remap_result = remapper.remap(s);
                 results[s-seed] = remap_result;
             }
