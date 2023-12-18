@@ -49,6 +49,7 @@ std::ostream& operator<<(std::ostream& os, const Node& n) {
 struct DijkstraComparator {
     std::map<const Node*, const Node*> prev;
     std::map<const Node *, int> dist;
+
     bool operator()(const Node * a, const Node * b) {
         return dist[a] > dist[b];
     }
@@ -73,27 +74,43 @@ public:
      * Behavior is undefined if a node 'n' is encountered during shortest path calculation,
      * such that 'n' is not part of the input graph 'nodes'.
      */
-    explicit DijkstraPriorityQueue(const std::vector<NodePtr>& nodes) {
+    explicit DijkstraPriorityQueue(const std::vector<NodePtr>& nodes, const NodePtr& src) {
         auto& comp = this->comp;
+
+        // can't do this at the start of the dijkstra solve,
+        // .push() must be called to do the actual container sorting.
+        // Just setting this to 0 in the map with operator[] does not work.
+        auto * s = src.get();
+        comp.dist[s] = 0;
+        comp.prev[s] = nullptr;
+        this->push(s);
+
         for (auto& n : nodes) {
+
+            if (n == src) continue; // src is already added.
+
             auto * nptr = n.get();
             comp.dist[nptr] = std::numeric_limits<int>::max();
             comp.prev[nptr] = nullptr;
 
             this->push(nptr);
+
+            // std::cout << "\tAdded " << nptr->label << ", siz: (" << this->size() << ")\n";
         }
     }
 
     // mimicing the wikipedia algo on Dijkstra involving a priority queue.
     // Calculates the shortest path to every node from 'from' if 'to' is nullptr.
+    // 'From' was defined at construction time.
     // Be aware that using the returned object for shortest path calcs is only accurate for the 'to'<-'from' path, if 'to' is not nullptr.
     // Only general shortest-path-from-source can be looked up if the algorithm is run in foll.
-    const DijkstraComparator& calculate_shortest_path(const Node * from, const Node * to) {
-        this->comp.dist[from] = 0;
+    const DijkstraComparator& calculate_shortest_path(const Node * to) {
+        std::cout << "Calc shortest path\n";
 
         // vertex priority queue is already created (it's this)
         while (! is_empty()) {
             auto * u = extract_min();
+            std::cout << "\tConsider " << u->label << " w/ val " << this->comp.dist[u] << " & " << u->edges.size() << "edges. (" << this->size() << " qs)\n";
 
             if (u == to) { // the shortest path is calculated, we can stop now.
                 return this->comp;
@@ -114,6 +131,7 @@ public:
         return this->comp;
     }
 
+private:
     [[nodiscard]] bool is_empty() const {
         return this->empty();
     }
@@ -124,11 +142,6 @@ public:
         this->pop();
         return next;
     }
-
-    void update_distance(const Node * key, const Node * from, int value) {
-        this->comp.dist[key] = value;
-        this->comp.prev[key] = from;
-    }
 };
 
 CLASS_DEF(DAY) {
@@ -138,7 +151,7 @@ public:
     void parse(std::ifstream &input) override {
         std::vector<std::vector<int>> grid;
         grid.emplace_back(); // assumes the grid is not empty :)
-        int c = 0;
+        int c;
         while ((c = input.get()) != EOF) {
             if (c == '\n') {
                 grid.emplace_back();
@@ -297,67 +310,32 @@ public:
     }
 
     void v1() const override {
-        std::vector<NodePtr> test;
-        auto x = std::make_shared<Node>(0, 0, "A");
-        auto y = std::make_shared<Node>(1, 1, "B");
-        auto z = std::make_shared<Node>(2, 2, "C");
-
-        auto e1 = Edge(y, 10);
-        x->addEdge(std::move(e1));
-
-        auto e2 = Edge(z, 5);
-        y->addEdge(std::move(e2));
-
-        auto e3 = Edge(x, 2);
-        z->addEdge(std::move(e3));
-
-        auto e4 = Edge(z, 16);
-        x->addEdge(std::move(e4));
-
-        test.push_back(x);
-        test.push_back(y);
-        test.push_back(z);
-
-        DijkstraPriorityQueue q(test);
-        auto& result = q.calculate_shortest_path(x.get(), z.get());
-
-        for (auto& kvp : result.dist) {
-            std::cout << "\t" << kvp.first << ", " << kvp.second << "\n";
-        }
-        std::cout << "prev map:\n";
-        for (auto& kvp : result.prev) {
-            std::cout << "\t" << kvp.first << ", " << kvp.second << "\n";
+        auto srciter = std::find_if(augmentedGraph.begin(), augmentedGraph.end(), [](auto& nodeptr) {
+            return nodeptr->label == "SRC";
+        });
+        if (srciter == augmentedGraph.end()) {
+            throw std::logic_error("Could not find the hardcoded SRC node.");
         }
 
-        std::cout << "Shortest path from " << x->label << " to " << z->label << " is as follows:\n";
-        std::cout << "Cost: " << result.data(z.get()).second << "\n";
+        auto trgiter = std::find_if(augmentedGraph.begin(), augmentedGraph.end(), [](auto& nodeptr) {
+            return nodeptr->label == "TRG";
+        });
+        if (trgiter == augmentedGraph.end()) {
+            throw std::logic_error("Could not find the hardcoded TRG node.");
+        }
 
-        const Node * here = z.get();
+        DijkstraPriorityQueue solver(augmentedGraph, *srciter);
+
+        auto * src = srciter->get();
+        auto * trg = trgiter->get();
+        auto result = solver.calculate_shortest_path(trg);
+
+        std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
+        const auto * here = trg;
         while (here != nullptr) {
-            std::cout << "\t" << here->label << ",\n";
+            std::cout << "\t" << here->label << "\n";
             here = result.data(here).first;
         }
-
-//        std::cout << "COMPARATOR OBJ TEST\n";
-//
-//        auto& c = q.get_comparator();
-//        auto& d = c.dist;
-//        auto& p = c.prev;
-//
-//        std::cout << "DISTS\n";
-//        for (auto& kvp : d) {
-//            std::cout << "\t" << kvp.first << ", " << kvp.second << "\n";
-//        }
-//
-//        std::cout << "PREV\n";
-//        for (auto& kvp : p) {
-//            std::cout << "\t" << kvp.first << ", " << kvp.second << "\n";
-//        }
-//
-//        std::cout << "TRY EXTRACT MIN\n";
-//
-//        auto * min = q.extract_min();
-//        std::cout << "\tmin is " << min->label << "\n";
 
         reportSolution(0);
     }
