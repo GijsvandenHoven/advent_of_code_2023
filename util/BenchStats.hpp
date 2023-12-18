@@ -71,6 +71,8 @@ public:
     }
 
     [[nodiscard]] Time std_dev() const {
+        if (all.size() <= 1) { return Time{0}; } // 0 divided by 0 otherwise, it's a bad time.
+
         auto x = mean();
         Time::rep squaredSum = 0;
         for (auto& s : all) {
