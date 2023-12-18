@@ -28,8 +28,11 @@ struct Node {
 
     void addEdge(Edge&& e) { edges.emplace_back(e); }
 
+    void assignId(int _id) { id = _id; }
+
     int x;
     int y;
+    int id = -4096; // just a big negative number to hopefully segfualt If I try using nodeIDs in a vector without assignment.
     std::string label;
     std::list<Edge> edges;
 };
@@ -123,9 +126,9 @@ public:
                 if (alt < this->comp.dist[v]) {
                     this->comp.dist[v] = alt;
                     this->comp.prev[v] = u;
-                }
 
-                this->push(v); // unconditionally adding to the priority queue, re-sorts so this must be after the distance update.
+                    this->push(v);
+                }
             }
         }
 
@@ -309,6 +312,12 @@ public:
             });
         }
 
+        // assign IDs to allow Dijkstra to look up nodes in constant time and O|V| memory.
+        int node_id = 0;
+        for (auto& n : augmentedGraph) {
+            n->assignId(node_id);
+            ++node_id;
+        }
         std::cout << "Augmented graph created with " << augmentedGraph.size() << " nodes\n";
     }
 
@@ -333,12 +342,12 @@ public:
         auto * trg = trgiter->get();
         auto result = solver.calculate_shortest_path(src, trg);
 
-        // std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
-//        const auto * here = trg;
-//        while (here != nullptr) {
-//            std::cout << "\t" << here->label << "\n";
-//            here = result.data(here).first;
-//        }
+        std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
+        const auto * here = trg;
+        while (here != nullptr) {
+            std::cout << "\t" << here->label << "\n";
+            here = result.data(here).first;
+        }
 
         reportSolution(result.data(trg).second);
     }
