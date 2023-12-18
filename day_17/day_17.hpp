@@ -100,14 +100,6 @@ public:
 
         comp.dist.resize(nodes.size(), DIJKSTRA_INFINITY);
         comp.prev.resize(nodes.size(), nullptr);
-//        for (auto& n : nodes) {
-//
-//            int nid = n->id;
-//            comp.dist[nid] = DIJKSTRA_INFINITY;
-//            comp.prev[nid] = nullptr;
-//
-//            // std::cout << "\tAdded " << nptr->label << ", siz: (" << this->size() << ")\n";
-//        }
     }
 
     // mimicing the wikipedia algo on Dijkstra involving a priority queue.
@@ -116,20 +108,17 @@ public:
     // Be aware that using the returned object for shortest path calcs is only accurate for the 'to'<-'from' path, if 'to' is not nullptr.
     // Only general shortest-path-from-source can be looked up if the algorithm is run in foll.
     const DijkstraComparator& calculate_shortest_path(const Node * src, const Node * to) {
-        //std::cout << "Calc shortest path\n";
         this->comp.dist[src->id] = 0;
         this->push(src);
 
         // vertex priority queue is updated as new elements are discovered.
         while (! is_empty()) {
             auto * u = extract_min();
-            std::cout << visited.size() << ". ";
+            std::cout << visited.size() << ". "; // progress reporting :) it is that slow :)
 
             if (visited.contains(u->id)) continue; // we already visited this node.
 
             visited.emplace(u->id);
-
-            // std::cout << "\tConsider " << u->label << " w/ val " << this->comp.dist[u] << " & " << u->edges.size() << " edges. (" << this->size() << " qs)\n";
 
             if (u == to) { // the shortest path is calculated, we can stop now.
                 break;
@@ -139,8 +128,6 @@ public:
             for (auto& edge : u->edges) {
                 auto * v = edge.to.get();
                 int alt = this->comp.dist[u->id] + edge.cost;
-
-                // std::cout << "\t\tAlt cost from " << u->label << " to " << v->label << " is " << alt << "\n";
                 // update the neighbour if it is cheaper to reach it from u...
                 if (alt < this->comp.dist[v->id]) {
                     this->comp.dist[v->id] = alt;
@@ -151,7 +138,7 @@ public:
             }
         }
 
-        std::cout << "\n";
+        std::cout << "\n"; // cleanup for progress reporting.
         return this->comp;
     }
 
@@ -194,8 +181,6 @@ public:
             }
         }
 
-        std::cout << "nrows: " << nrows << ", ncols: " << ncols << "\n";
-
 #if DO_SOLUTION_1
         makeNormalCrucibleAugmentedGraph(nrows, ncols, grid);
 #endif
@@ -227,6 +212,7 @@ public:
         auto * trg = trgiter->get();
         auto result = solver.calculate_shortest_path(src, trg);
 
+// Uncomment to visualise path.
 //        std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
 //        const auto * here = trg;
 //        while (here != nullptr) {
@@ -262,6 +248,7 @@ public:
         auto * trg = trgiter->get();
         auto result = solver.calculate_shortest_path(src, trg);
 
+// Uncomment to visualise path.
 //        std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
 //        const auto * here = trg;
 //        while (here != nullptr) {
@@ -297,7 +284,6 @@ private:
 
             if (maybeTarget == nodeList.end()) continue;
 
-            // std::cout << "Going to connect " << src->label << " with: " << (*maybeTarget)->label << ".\n";
             auto& trg = *maybeTarget;
 
             // calculate the cost of this edge we are about to add.
@@ -324,7 +310,6 @@ private:
                 throw std::logic_error("sx != tx && sy != ty (" + std::to_string(sx) + ", " + std::to_string(tx) + ", " + std::to_string(sy) + ", " + std::to_string(ty));
             }
 
-            // std::cout << "edge from " << src->label << " to " << (*maybeTarget)->label << " costs " << cost << ".\n";
             Edge e(trg, cost);
             src->addEdge(std::move(e));
         }
@@ -345,8 +330,6 @@ private:
                 }
             }
         }
-
-        std::cout << "nodes created\n";
 
         // connect the nodes appropriately, with the correctly calculated cost.
         int iterCount = 0;
@@ -396,12 +379,10 @@ private:
                     break;
             }
 
-            // std::cout << "\ttry create edges\n";
             // We now have all the lables to seek in the vector, to create edges for this node.
             createEdges(n, nodes, connectLabels, grid);
         }
 
-        std::cout << "nodes connected\n";
         // finally, connect a src node to the starting points, and a target node to the ends. Coordinates are irrelevant for these.
         auto trg = std::make_shared<Node>(1'000'000'000, 1'000'000'000, "TRG");
         auto src = std::make_shared<Node>(-1'000'000'000, -1'000'000'000, "SRC");
@@ -436,14 +417,13 @@ private:
             Edge te3(trg, 0); (*ct3)->addEdge(std::move(te3));
             Edge te4(trg, 0); (*ct4)->addEdge(std::move(te4));
         }
-        std::cout << "src & trg connected\npruning unconnected nodes & dead edges.\n";
+        std::cout << "all nodes connected\npruning unconnected nodes & dead edges.\n";
 
         // cleanup / pruning: Edges other than "TRG" with 0 outgoing edges should not go into the graph.
         // These pruned nodes should also have edges with their name on it removed.
         std::vector<NodePtr> pruned;
         std::for_each(nodes.begin(), nodes.end(), [this, &pruned](auto node) {
             if (node->edges.empty()) {
-                // std::cout << "node " << node->label << " has 0 outgoing edges.\n";
                 pruned.push_back(node);
             } else {
                 this->crucibleAugmentedGraph.push_back(node);
@@ -496,8 +476,6 @@ private:
                 }
             }
         }
-
-        std::cout << "nodes created\n";
 
         // connect the nodes appropriately, with the correctly calculated cost.
         // In ultra crucible mode, movement is 4 to 10 tiles.
@@ -585,13 +563,10 @@ private:
                     connectLabels.emplace_back(std::move(toLabel(x-10, y, "S")));
                     break;
             }
-
-            // std::cout << "\ttry create edges\n";
             // We now have all the lables to seek in the vector, to create edges for this node.
             createEdges(n, nodes, connectLabels, grid);
         }
 
-        std::cout << "nodes connected\n";
         // finally, connect a src node to the starting points, and a target node to the ends. Coordinates are irrelevant for these.
         auto trg = std::make_shared<Node>(1'000'000'000, 1'000'000'000, "TRG");
         auto src = std::make_shared<Node>(-1'000'000'000, -1'000'000'000, "SRC");
@@ -626,14 +601,13 @@ private:
             Edge te3(trg, 0); (*ct3)->addEdge(std::move(te3));
             Edge te4(trg, 0); (*ct4)->addEdge(std::move(te4));
         }
-        std::cout << "src & trg connected\npruning unconnected nodes & dead edges.\n";
+        std::cout << "all connected\npruning unconnected nodes & dead edges.\n";
 
         // cleanup / pruning: Edges other than "TRG" with 0 outgoing edges should not go into the graph.
         // These pruned nodes should also have edges with their name on it removed.
         std::vector<NodePtr> pruned;
         std::for_each(nodes.begin(), nodes.end(), [this, &pruned](auto node) {
             if (node->edges.empty()) {
-                // std::cout << "node " << node->label << " has 0 outgoing edges.\n";
                 pruned.push_back(node);
             } else {
                 this->ultraCrucibleAugmentedGraph.push_back(node);
