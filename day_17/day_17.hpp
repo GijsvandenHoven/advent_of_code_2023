@@ -110,7 +110,7 @@ public:
         // vertex priority queue is already created (it's this)
         while (! is_empty()) {
             auto * u = extract_min();
-            std::cout << "\tConsider " << u->label << " w/ val " << this->comp.dist[u] << " & " << u->edges.size() << "edges. (" << this->size() << " qs)\n";
+            std::cout << "\tConsider " << u->label << " w/ val " << this->comp.dist[u] << " & " << u->edges.size() << " edges. (" << this->size() << " qs)\n";
 
             if (u == to) { // the shortest path is calculated, we can stop now.
                 return this->comp;
@@ -120,6 +120,7 @@ public:
             for (auto& edge : u->edges) {
                 auto * v = edge.to.get();
                 int alt = this->comp.dist[u] + edge.cost;
+                std::cout << "\t\tAlt cost from " << u->label << " to " << v->label << " is " << alt << "\n";
                 // update the neighbour if it is cheaper to reach it from u...
                 if (alt < this->comp.dist[v]) {
                     this->comp.dist[v] = alt;
