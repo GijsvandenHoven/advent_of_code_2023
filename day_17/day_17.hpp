@@ -63,7 +63,9 @@ struct DijkstraComparator {
     }
 };
 
-class DijkstraPriorityQueue : private std::priority_queue<Node *, std::vector<Node *>, DijkstraComparator> {
+constexpr int DIJKSTRA_INFINITY = std::numeric_limits<int>::max();
+
+class DijkstraPriorityQueue : private std::priority_queue<const Node *, std::vector<const Node *>, DijkstraComparator> {
 public:
 
     /**
@@ -74,26 +76,14 @@ public:
      * Behavior is undefined if a node 'n' is encountered during shortest path calculation,
      * such that 'n' is not part of the input graph 'nodes'.
      */
-    explicit DijkstraPriorityQueue(const std::vector<NodePtr>& nodes, const NodePtr& src) {
+    explicit DijkstraPriorityQueue(const std::vector<NodePtr>& nodes) {
         auto& comp = this->comp;
-
-        // can't do this at the start of the dijkstra solve,
-        // .push() must be called to do the actual container sorting.
-        // Just setting this to 0 in the map with operator[] does not work.
-        auto * s = src.get();
-        comp.dist[s] = 0;
-        comp.prev[s] = nullptr;
-        this->push(s);
 
         for (auto& n : nodes) {
 
-            if (n == src) continue; // src is already added.
-
             auto * nptr = n.get();
-            comp.dist[nptr] = std::numeric_limits<int>::max();
+            comp.dist[nptr] = DIJKSTRA_INFINITY;
             comp.prev[nptr] = nullptr;
-
-            this->push(nptr);
 
             // std::cout << "\tAdded " << nptr->label << ", siz: (" << this->size() << ")\n";
         }
@@ -104,13 +94,20 @@ public:
     // 'From' was defined at construction time.
     // Be aware that using the returned object for shortest path calcs is only accurate for the 'to'<-'from' path, if 'to' is not nullptr.
     // Only general shortest-path-from-source can be looked up if the algorithm is run in foll.
-    const DijkstraComparator& calculate_shortest_path(const Node * to) {
-        std::cout << "Calc shortest path\n";
+    const DijkstraComparator& calculate_shortest_path(const Node * src, const Node * to) {
+        //std::cout << "Calc shortest path\n";
+        this->comp.dist[src] = 0;
+        this->push(src);
 
-        // vertex priority queue is already created (it's this)
+        // vertex priority queue is updated as new elements are discovered.
         while (! is_empty()) {
             auto * u = extract_min();
-            std::cout << "\tConsider " << u->label << " w/ val " << this->comp.dist[u] << " & " << u->edges.size() << " edges. (" << this->size() << " qs)\n";
+
+            if (visited.contains(u)) continue; // we already visited this node.
+
+            visited.emplace(u);
+
+            // std::cout << "\tConsider " << u->label << " w/ val " << this->comp.dist[u] << " & " << u->edges.size() << " edges. (" << this->size() << " qs)\n";
 
             if (u == to) { // the shortest path is calculated, we can stop now.
                 return this->comp;
@@ -120,12 +117,15 @@ public:
             for (auto& edge : u->edges) {
                 auto * v = edge.to.get();
                 int alt = this->comp.dist[u] + edge.cost;
-                std::cout << "\t\tAlt cost from " << u->label << " to " << v->label << " is " << alt << "\n";
+
+                // std::cout << "\t\tAlt cost from " << u->label << " to " << v->label << " is " << alt << "\n";
                 // update the neighbour if it is cheaper to reach it from u...
                 if (alt < this->comp.dist[v]) {
                     this->comp.dist[v] = alt;
                     this->comp.prev[v] = u;
                 }
+
+                this->push(v); // unconditionally adding to the priority queue, re-sorts so this must be after the distance update.
             }
         }
 
@@ -133,6 +133,8 @@ public:
     }
 
 private:
+    std::set<const Node *> visited;
+
     [[nodiscard]] bool is_empty() const {
         return this->empty();
     }
@@ -325,11 +327,11 @@ public:
             throw std::logic_error("Could not find the hardcoded TRG node.");
         }
 
-        DijkstraPriorityQueue solver(augmentedGraph, *srciter);
+        DijkstraPriorityQueue solver(augmentedGraph);
 
         auto * src = srciter->get();
         auto * trg = trgiter->get();
-        auto result = solver.calculate_shortest_path(trg);
+        auto result = solver.calculate_shortest_path(src, trg);
 
         std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
         const auto * here = trg;
