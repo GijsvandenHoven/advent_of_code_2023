@@ -52,14 +52,27 @@ struct DijkstraComparator {
     bool operator()(const Node * a, const Node * b) {
         return dist[a] > dist[b];
     }
+
+    // assumes the requested node exists in the maps :)
+    std::pair<const Node *, int> data (const Node * n) const {
+        auto * pre = prev.find(n)->second;
+        int cost = dist.find(n)->second;
+
+        return std::make_pair(pre, cost);
+    }
 };
 
-class DijkstraPriorityQueue : public std::priority_queue<
-        Node *,
-        std::vector<Node *>,
-        DijkstraComparator
-> {
+class DijkstraPriorityQueue : private std::priority_queue<Node *, std::vector<Node *>, DijkstraComparator> {
 public:
+
+    /**
+     * Initializes Dijkstra's Algorithm, by preparing the priority queue:
+     * Every node in the supplied container has its distance set to infinity (INT_MAX),
+     * And its predecessor set to nullptr.
+     *
+     * Behavior is undefined if a node 'n' is encountered during shortest path calculation,
+     * such that 'n' is not part of the input graph 'nodes'.
+     */
     explicit DijkstraPriorityQueue(const std::vector<NodePtr>& nodes) {
         auto& comp = this->comp;
         for (auto& n : nodes) {
@@ -71,8 +84,50 @@ public:
         }
     }
 
-    DijkstraComparator& get_comparator() {
+    // mimicing the wikipedia algo on Dijkstra involving a priority queue.
+    // Calculates the shortest path to every node from 'from' if 'to' is nullptr.
+    // Be aware that using the returned object for shortest path calcs is only accurate for the 'to'<-'from' path, if 'to' is not nullptr.
+    // Only general shortest-path-from-source can be looked up if the algorithm is run in foll.
+    const DijkstraComparator& calculate_shortest_path(const Node * from, const Node * to) {
+        this->comp.dist[from] = 0;
+
+        // vertex priority queue is already created (it's this)
+        while (! is_empty()) {
+            auto * u = extract_min();
+
+            if (u == to) { // the shortest path is calculated, we can stop now.
+                return this->comp;
+            }
+
+            // for each neighbour of u...
+            for (auto& edge : u->edges) {
+                auto * v = edge.to.get();
+                int alt = this->comp.dist[u] + edge.cost;
+                // update the neighbour if it is cheaper to reach it from u...
+                if (alt < this->comp.dist[v]) {
+                    this->comp.dist[v] = alt;
+                    this->comp.prev[v] = u;
+                }
+            }
+        }
+
         return this->comp;
+    }
+
+    [[nodiscard]] bool is_empty() const {
+        return this->empty();
+    }
+
+    // Remove and return the best vertex
+    const Node * extract_min() {
+        auto * next = this->top();
+        this->pop();
+        return next;
+    }
+
+    void update_distance(const Node * key, const Node * from, int value) {
+        this->comp.dist[key] = value;
+        this->comp.prev[key] = from;
     }
 };
 
@@ -120,7 +175,7 @@ public:
 
         // connect the nodes appropriately, with the correctly calculated cost.
         int iterCount = 0;
-        std::cout << "Connecting Augmented Graph." << nodes.size() << " units of work to do. Reporting every 1000.\n";
+        std::cout << "Connecting Augmented Graph. " << nodes.size() << " units of work to do. Reporting every 1000.\n";
         for (auto& n : nodes) {
             if (++iterCount % 1000 == 0) {
                 std::cout << iterCount << " .. ";
@@ -206,7 +261,7 @@ public:
             Edge te3(trg, 0); (*ct3)->addEdge(std::move(te3));
             Edge te4(trg, 0); (*ct4)->addEdge(std::move(te4));
         }
-        std::cout << "src & trg connected\npruning unconnected nodes & dead edges.";
+        std::cout << "src & trg connected\npruning unconnected nodes & dead edges.\n";
 
         // cleanup / pruning: Edges other than "TRG" with 0 outgoing edges should not go into the graph.
         // These pruned nodes should also have edges with their name on it removed.
@@ -256,27 +311,53 @@ public:
         auto e3 = Edge(x, 2);
         z->addEdge(std::move(e3));
 
+        auto e4 = Edge(z, 16);
+        x->addEdge(std::move(e4));
+
         test.push_back(x);
         test.push_back(y);
         test.push_back(z);
 
         DijkstraPriorityQueue q(test);
+        auto& result = q.calculate_shortest_path(x.get(), z.get());
 
-        std::cout << "COMPARATOR OBJ TEST\n";
-
-        auto& c = q.get_comparator();
-        auto& d = c.dist;
-        auto& p = c.prev;
-
-        std::cout << "DISTS\n";
-        for (auto& kvp : d) {
+        for (auto& kvp : result.dist) {
+            std::cout << "\t" << kvp.first << ", " << kvp.second << "\n";
+        }
+        std::cout << "prev map:\n";
+        for (auto& kvp : result.prev) {
             std::cout << "\t" << kvp.first << ", " << kvp.second << "\n";
         }
 
-        std::cout << "PREV\n";
-        for (auto& kvp : p) {
-            std::cout << "\t" << kvp.first << ", " << kvp.second << "\n";
+        std::cout << "Shortest path from " << x->label << " to " << z->label << " is as follows:\n";
+        std::cout << "Cost: " << result.data(z.get()).second << "\n";
+
+        const Node * here = z.get();
+        while (here != nullptr) {
+            std::cout << "\t" << here->label << ",\n";
+            here = result.data(here).first;
         }
+
+//        std::cout << "COMPARATOR OBJ TEST\n";
+//
+//        auto& c = q.get_comparator();
+//        auto& d = c.dist;
+//        auto& p = c.prev;
+//
+//        std::cout << "DISTS\n";
+//        for (auto& kvp : d) {
+//            std::cout << "\t" << kvp.first << ", " << kvp.second << "\n";
+//        }
+//
+//        std::cout << "PREV\n";
+//        for (auto& kvp : p) {
+//            std::cout << "\t" << kvp.first << ", " << kvp.second << "\n";
+//        }
+//
+//        std::cout << "TRY EXTRACT MIN\n";
+//
+//        auto * min = q.extract_min();
+//        std::cout << "\tmin is " << min->label << "\n";
 
         reportSolution(0);
     }
@@ -291,10 +372,6 @@ public:
 
 private:
     std::vector<NodePtr> augmentedGraph; // size = (W*H*4) - (2xH+2xW) + 4; x4 from augment, -(..) from pruning, +4 from src,trg and the 2 saved from the prune because of it.
-
-    static void dijkstra() {
-
-    }
 
     static void createEdges(
             const NodePtr& src,
