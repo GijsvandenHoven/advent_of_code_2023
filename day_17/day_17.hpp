@@ -333,14 +333,14 @@ public:
         auto * trg = trgiter->get();
         auto result = solver.calculate_shortest_path(src, trg);
 
-        std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
-        const auto * here = trg;
-        while (here != nullptr) {
-            std::cout << "\t" << here->label << "\n";
-            here = result.data(here).first;
-        }
+        // std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
+//        const auto * here = trg;
+//        while (here != nullptr) {
+//            std::cout << "\t" << here->label << "\n";
+//            here = result.data(here).first;
+//        }
 
-        reportSolution(0);
+        reportSolution(result.data(trg).second);
     }
 
     void v2() const override {
