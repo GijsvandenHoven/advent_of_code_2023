@@ -50,17 +50,21 @@ std::ostream& operator<<(std::ostream& os, const Node& n) {
 }
 
 struct DijkstraComparator {
-    std::map<const Node*, const Node*> prev;
-    std::map<const Node *, int> dist;
+    //std::map<const Node*, const Node*> prev;
+    //std::map<const Node *, int> dist;
+    std::vector<const Node *> prev;
+    std::vector<int> dist; // index i represents node id i.
 
     bool operator()(const Node * a, const Node * b) {
-        return dist[a] > dist[b];
+        return dist[a->id] > dist[b->id];
     }
 
     // assumes the requested node exists in the maps :)
     std::pair<const Node *, int> data (const Node * n) const {
-        auto * pre = prev.find(n)->second;
-        int cost = dist.find(n)->second;
+//        auto * pre = prev.find(n)->second;
+//        int cost = dist.find(n)->second;
+        auto * pre = prev[n->id];
+        int cost = dist[n->id];
 
         return std::make_pair(pre, cost);
     }
@@ -82,14 +86,24 @@ public:
     explicit DijkstraPriorityQueue(const std::vector<NodePtr>& nodes) {
         auto& comp = this->comp;
 
-        for (auto& n : nodes) {
-
-            auto * nptr = n.get();
-            comp.dist[nptr] = DIJKSTRA_INFINITY;
-            comp.prev[nptr] = nullptr;
-
-            // std::cout << "\tAdded " << nptr->label << ", siz: (" << this->size() << ")\n";
+        int expected = 0; // could technically be relaxed as long as things map bijectively to [0: N).
+        for (auto& ptr : nodes) {
+            if (ptr->id != expected) {
+                throw std::logic_error("Linear IDs expected in Dijkstra solver.");
+            }
+            expected++;
         }
+
+        comp.dist.resize(nodes.size(), DIJKSTRA_INFINITY);
+        comp.prev.resize(nodes.size(), nullptr);
+//        for (auto& n : nodes) {
+//
+//            int nid = n->id;
+//            comp.dist[nid] = DIJKSTRA_INFINITY;
+//            comp.prev[nid] = nullptr;
+//
+//            // std::cout << "\tAdded " << nptr->label << ", siz: (" << this->size() << ")\n";
+//        }
     }
 
     // mimicing the wikipedia algo on Dijkstra involving a priority queue.
@@ -99,16 +113,17 @@ public:
     // Only general shortest-path-from-source can be looked up if the algorithm is run in foll.
     const DijkstraComparator& calculate_shortest_path(const Node * src, const Node * to) {
         //std::cout << "Calc shortest path\n";
-        this->comp.dist[src] = 0;
+        this->comp.dist[src->id] = 0;
         this->push(src);
 
         // vertex priority queue is updated as new elements are discovered.
         while (! is_empty()) {
             auto * u = extract_min();
+            std::cout << visited.size() << ". ";
 
-            if (visited.contains(u)) continue; // we already visited this node.
+            if (visited.contains(u->id)) continue; // we already visited this node.
 
-            visited.emplace(u);
+            visited.emplace(u->id);
 
             // std::cout << "\tConsider " << u->label << " w/ val " << this->comp.dist[u] << " & " << u->edges.size() << " edges. (" << this->size() << " qs)\n";
 
@@ -119,24 +134,25 @@ public:
             // for each neighbour of u...
             for (auto& edge : u->edges) {
                 auto * v = edge.to.get();
-                int alt = this->comp.dist[u] + edge.cost;
+                int alt = this->comp.dist[u->id] + edge.cost;
 
                 // std::cout << "\t\tAlt cost from " << u->label << " to " << v->label << " is " << alt << "\n";
                 // update the neighbour if it is cheaper to reach it from u...
-                if (alt < this->comp.dist[v]) {
-                    this->comp.dist[v] = alt;
-                    this->comp.prev[v] = u;
+                if (alt < this->comp.dist[v->id]) {
+                    this->comp.dist[v->id] = alt;
+                    this->comp.prev[v->id] = u;
 
                     this->push(v);
                 }
             }
         }
 
+        std::cout << "\n";
         return this->comp;
     }
 
 private:
-    std::set<const Node *> visited;
+    std::set<int> visited;
 
     [[nodiscard]] bool is_empty() const {
         return this->empty();
@@ -342,12 +358,12 @@ public:
         auto * trg = trgiter->get();
         auto result = solver.calculate_shortest_path(src, trg);
 
-        std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
-        const auto * here = trg;
-        while (here != nullptr) {
-            std::cout << "\t" << here->label << "\n";
-            here = result.data(here).first;
-        }
+//        std::cout << "Dijkstra reports path from " << src->label << " to " << trg->label << " costs: " << result.data(trg).second << "\nLike this:\n";
+//        const auto * here = trg;
+//        while (here != nullptr) {
+//            std::cout << "\t" << here->label << "\n";
+//            here = result.data(here).first;
+//        }
 
         reportSolution(result.data(trg).second);
     }
