@@ -12,7 +12,7 @@
 NAMESPACE_DEF(DAY) {
 
 // stuff is slow, toggling for running them 1 at a time.
-#define DO_SOLUTION_1 false
+#define DO_SOLUTION_1 true
 #define DO_SOLUTION_2 true
 
 struct Node;
@@ -350,7 +350,7 @@ private:
 
         // connect the nodes appropriately, with the correctly calculated cost.
         int iterCount = 0;
-        std::cout << "Connecting Augmented Graph. " << nodes.size() << " units of work to do. Reporting every 1000.\n";
+        std::cout << "Connecting Normal Crucible Augmented Graph. " << nodes.size() << " units of work to do. Reporting every 1000.\n";
         for (auto& n : nodes) {
             if (++iterCount % 1000 == 0) {
                 std::cout << iterCount << " .. ";
@@ -504,7 +504,7 @@ private:
         // Thus, edges connect to nodes 4 to 10 tiles over.
         // The rules for turning remain the same (only orthogonal, no continue or turn-around)
         int iterCount = 0;
-        std::cout << "Connecting Augmented Graph. " << nodes.size() << " units of work to do. Reporting every 1000.\n";
+        std::cout << "Connecting Ultra Crucible Augmented Graph. " << nodes.size() << " units of work to do. Reporting every 1000.\n";
         for (auto& n : nodes) {
             if (++iterCount % 1000 == 0) {
                 std::cout << iterCount << " .. ";
