@@ -31,6 +31,133 @@ struct ObjectWrapper {
 
 using Functor = std::function<std::pair<bool,std::string>(ObjectWrapper&)>;
 
+// problem 2
+struct Rule {
+    std::string remap;
+    int guard;
+    char field;
+    char comparator;
+
+    Rule() = delete;
+    explicit Rule(const std::string& from) : guard(0) {
+        if (from.find(':') == std::string::npos) { // unconditional function.
+            field = 'x';
+            comparator = '>';
+            remap = from;
+            guard = 0; // x > 0 is always true.
+        } else {
+            std::istringstream s(from);
+            field = static_cast<char>(s.get());
+            char op = static_cast<char>(s.get());
+            switch (op) {
+                default:
+                    throw std::logic_error("Unknown op");
+                case '>':
+                case '<':
+                    comparator = op;
+            }
+
+            s >> guard;
+            if (s.get() != ':') throw std::logic_error("Stream cannot extract label");
+
+            s >> remap;
+        }
+    }
+};
+
+struct Range {
+    struct R {
+        int from;
+        int to;
+        [[nodiscard]] int64_t size() const {
+            return to - from + 1;
+        }
+        [[nodiscard]] bool empty() const {
+            return from >= to;
+        }
+    };
+
+    R x{};
+    R m{};
+    R a{};
+    R s{};
+
+    Range() : x(1,4000), m(1,4000), a(1,4000), s(1,4000) {}
+
+    Range(const Range& copying, const R& but, char field) {
+        x = (field == 'x' ? but : copying.x);
+        m = (field == 'm' ? but : copying.m);
+        a = (field == 'a' ? but : copying.a);
+        s = (field == 's' ? but : copying.s);
+    }
+
+    [[nodiscard]] bool empty () const {
+        return x.empty() || m.empty() || a.empty() || s.empty();
+    }
+
+    [[nodiscard]] uint64_t combinations () const {
+        return x.size() * m.size() * a.size() * s.size();
+    }
+
+    // Given a rule, split this range into at most 2 other ranges. Returns how many range objects were created (0 to 2)
+    [[nodiscard]] int split(const Rule& rule, std::array<Range, 2>& newRanges) const {
+        const R * operatingOn;
+        switch (rule.field) {
+            default: throw std::logic_error("Illegal field");
+            case 'x': operatingOn = &x; break;
+            case 'm': operatingOn = &m; break;
+            case 'a': operatingOn = &a; break;
+            case 's': operatingOn = &s; break;
+        }
+
+        bool completelyOver = rule.comparator == '>' && rule.guard >= operatingOn->to;
+        bool completelyUnder = rule.comparator == '<' && rule.guard <= operatingOn->from;
+        if (completelyOver || completelyUnder) {
+            return 0;
+        }
+
+        bool completelyCoveredA = rule.comparator == '>' && rule.guard < operatingOn->from;
+        bool completelyCoveredB = rule.comparator == '<' && rule.guard > operatingOn->to;
+        if (completelyCoveredA || completelyCoveredB) {
+            newRanges[0] = *this;
+            return 1;
+        }
+
+        // There is partial coverage, and the range must be split in two.
+        R lhs{};
+        R rhs{};
+        switch (rule.comparator) {
+            default: throw std::logic_error("Unknown comparator");
+            case '>':
+                lhs.from = operatingOn->from;
+                lhs.to = rule.guard;
+                rhs.from = rule.guard + 1;
+                rhs.to = operatingOn->to;
+                break;
+            case '<':
+                lhs.from = operatingOn->from;
+                lhs.to = rule.guard - 1;
+                rhs.from = rule.guard;
+                rhs.to = operatingOn->to;
+                break;
+        }
+
+        newRanges[0] = Range(*this, lhs, rule.field);
+        newRanges[1] = Range(*this, rhs, rule.field);
+
+        return 2;
+    }
+};
+
+std::ostream& operator<<(std::ostream& os, const Range& r) {
+    os << "Range ("
+    <<"x: " << r.x.from << " - " << r.x.to
+    << ", m: " << r.m.from << " - " << r.m.to
+    << ", a: " << r.a.from << " - " << r.a.to
+    << ", s: " << r.s.from<< " - " << r.s.to << ")";
+    return os;
+}
+
 CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
@@ -40,6 +167,7 @@ public:
         while (std::getline(input, line)) { // functors
             if (line.empty()) break;
             addFunctor(line);
+            addRule(line);
         }
 
         while (std::getline(input, line)) { // objects
@@ -62,9 +190,9 @@ public:
         reportSolution(accepted_xmas_sum);
     }
 
-    // todo: This is probably some substitution thing to get a spread on it all for starters.
+    // todo: This probably is doable if you make range objects and split them apart for every rule, recursion-style, then count all the accepted ranges.
     void v2() const override {
-        reportSolution(0);
+        reportSolution(recursiveCombinatorialCountWithRange(Range(), ENTRY_LABEL));
     }
 
     void parseBenchReset() override {
@@ -73,8 +201,11 @@ public:
     }
 
 private:
+    // problem 1
     std::vector<ObjectWrapper> objs;
     std::map<std::string, Functor> functions;
+    // problem 2
+    std::map<std::string, std::vector<Rule>> rules;
 
     static constexpr std::string ACCEPT_LABEL = "A";
     static constexpr std::string REJECT_LABEL = "R";
@@ -108,6 +239,55 @@ private:
         if (iter == functions.end()) throw std::logic_error("Unknown function label: " + s);
 
         return iter->second;
+    }
+
+    uint64_t recursiveCombinatorialCountWithRange(const Range& r, const std::string& lbl) const {
+        // std::cout << "Eval " << r << " w/ " << lbl << "\n";
+
+        // base cases.
+        if (lbl == "A") {
+            auto comb = r.combinations();
+            // std::cout << "\tAccept w/ " << comb << "\n";
+            return comb;
+        }
+        if (lbl == "R") {
+            // std::cout << "\tReject (0)";
+            return 0;
+        }
+
+        auto iter = rules.find(lbl);
+        if (iter == rules.end()) throw std::logic_error("lbl " + lbl + " Does not exist");
+
+        auto workingWith = r;
+        int ruleIndex = 0;
+        uint64_t combinationCount = 0;
+        while (! workingWith.empty()) { // dangerous and unsafe. ruleIndex will increment past the vector if it weren't the case that the last rule in any vector is always encompassing the entire range.
+            auto& rule = iter->second[ruleIndex];
+            std::array<Range, 2> split;
+            int newRanges = workingWith.split(rule, split);
+            switch (newRanges) {
+                default: throw std::logic_error("Unknown number of split ranges");
+                case 0: // nothing satisfies the rule, try the next rule in this list.
+                    ruleIndex ++;
+                    break;
+                case 1: // the whole range fits the rule. We can stop looking through this list.
+                    // std::cout << "\trecurse entire range to " << rule.remap << "\n";
+                    return combinationCount + recursiveCombinatorialCountWithRange(workingWith, rule.remap);
+                case 2:
+                    // Part goes to the next rule, part goes to a different list.
+                    if (rule.comparator == '>') { // [0] does not satisfy the rule. [1] does.
+                        combinationCount += recursiveCombinatorialCountWithRange(split[1], rule.remap);
+                        workingWith = split[0];
+                    } else { // '<'. [0] satisfies the rule, [1] does not.
+                        combinationCount += recursiveCombinatorialCountWithRange(split[0], rule.remap);
+                        workingWith = split[1];
+                    }
+                    ruleIndex++;
+                    break;
+            }
+        }
+
+        return combinationCount;
     }
 
     void addFunctor(const std::string& from) {
@@ -192,6 +372,27 @@ private:
             };
         } else {
             return newF;
+        }
+    }
+
+    void addRule(const std::string& from) {
+        std::istringstream s(from);
+        std::ostringstream o;
+        auto resetO = [&o](){ o.clear(); o.str(std::string()); };
+        int c;
+        while ((c = s.get()) != '{') {
+            o << static_cast<char>(c);
+        }
+        std::string label = o.str();
+        resetO();
+
+        while ((c = s.get()) != EOF) {
+            if (c == ',' || c == '}') {
+                rules[label].emplace_back(o.str());
+                resetO();
+            } else {
+                o << static_cast<char>(c);
+            }
         }
     }
 
