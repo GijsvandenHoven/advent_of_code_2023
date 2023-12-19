@@ -16,12 +16,6 @@ enum class Direction : uint8_t {
     RIGHT
 };
 
-enum class IntersectionType : uint8_t { // todo this can probably be a bool.
-    NONE = 0,
-    ON,
-    INTERSECT
-};
-
 struct DigInstruction {
     Direction d;
     int dist;
@@ -86,51 +80,7 @@ struct LinePiece {
 
         return (y >= start.second && y <= end.second) || (y >= end.second && y <= start.second);
     }
-
-    [[nodiscard]] bool intersecting(int x, int y) const {
-        if (isVertical()) { // unchanging x.
-            return x == start.first && ((y >= start.second && y <= end.second) || (y >= end.second && y <= start.second));
-        } else if (isHorizontal()) { // unchanging y.
-            return y == start.first && ((x >= start.first && x <= end.first) || (x >= end.first && x <= end.first));
-        } else throw std::logic_error("Unsupported edge type.");
-    }
-
-    [[nodiscard]] std::string brief() const {
-        return "(" + std::to_string(start.first) + ", " + std::to_string(start.second) + ") - (" + std::to_string(end.first) + ", " + std::to_string(end.second) + ")";
-    }
-
-    [[nodiscard]] IntersectionType testVerticalIntersection(int x, int y) const {
-        if (start.first == end.first) { // x does not change, this is a vertical piece that may intersect.
-            if (x == start.first && x == end.first) {
-                if ((y >= start.second && y <= end.second) || (y >= end.second && y <= start.second)) {
-                    return IntersectionType::INTERSECT;
-                } else {
-                    return IntersectionType::NONE;
-                }
-            } else { // x does not match
-                return IntersectionType::NONE;
-            }
-        } else { // horizontal piece, we might be on it though.
-            if (y == start.second && y == end.second) {
-                if ((x >= start.first && x <= end.first) || (x >= end.first && x <= start.first)) {
-                    return IntersectionType::ON;
-                } else { // Y matches, but it's not on top of it.
-                    return IntersectionType::NONE;
-                }
-            } else { // nope, Y doesn't match.
-                return IntersectionType::NONE;
-            }
-        }
-    }
 };
-
-std::ostream& operator<<(std::ostream& os, const LinePiece& l) {
-    os << "LinePiece (" << (l.isVertical() ? "vertical" : (l.isHorizontal() ? "horizontal" : "scuffed")) << ") {\n";
-    os << "\tstart: (" << l.start.first << ", " << l.start.second << ")\n";
-    os << "\tend: (" << l.end.first << ", " << l.end.second << ")\n";
-    os << "}";
-    return os;
-}
 
 CLASS_DEF(DAY) {
 public:
@@ -175,7 +125,7 @@ private:
         int minY = horizontal[0].start.second;
         int maxY = horizontal.back().start.second;
         int minX = vertical[0].start.first;
-        int maxX = vertical.back().start.first;
+        // int maxX = vertical.back().start.first;
 
         const auto verticalScannerEnd = horizontal.end();
         const auto horizontalScannerStart = vertical.begin();
@@ -183,47 +133,35 @@ private:
 
         int64_t surface = 0;
         int y = minY;
-        std::cout << "Work until " << maxY << "\n";
         auto verticalScanner = horizontal.begin();
+
+        // Lambda function for finding the next Y target, used for rectangle area detection given a line surface area and the Y in the future.
+        // Does not work if the line surface area calculated involved corners, only use for cleanly vertically intersected lines.
+        auto findNextYTarget = [maxY](auto iterator, auto iterEnd, int currentY) -> int {
+            while (iterator != iterEnd) {
+                int newY = iterator->start.second;
+                if (newY <= currentY) {
+                    ++iterator;
+                } else {
+                    return newY;
+                }
+            }
+            return maxY + 1;
+        };
+
         while (verticalScanner != verticalScannerEnd) {
             // scan this line, what is its surface?
-            //std::cout << "scan line " << y << "\n";
-            int64_t lineSurface = surfaceOfLine(y, minX, horizontalScannerStart, horizontalScannerEnd);
-            //std::cout << "scan line result " << lineSurface << "\n";
+            auto [lineSurface, hadCorners] = surfaceOfLine(y, minX, horizontalScannerStart, horizontalScannerEnd);
 
-            // todo remove this section
-            surface += lineSurface;
-            y++;
-            if (y % 4096 == 0) { std::cout << y << "\n"; }
-//            // scan forward until the shape changes. This is indicated by hitting a horizontal piece past our current Y.
-//            int newY;
-//            while (verticalScanner != verticalScannerEnd) {
-//                newY = verticalScanner->start.second;
-//                if (newY <= y) {
-//                    ++verticalScanner;
-//                } else {
-//                    break;
-//                }
-//            }
-//            // verticalScanner iterator now points to the first horizontal line piece past y.
-//
-//            if (verticalScanner == verticalScannerEnd) { // end of the grid. calculate the last lines with the last known surface size.
-//                std::cout << "END\n";
-//                return 0;
-//            } else {
-//                // hit a horizontal piece past our current y.
-//                // first, how many times the last line was the rectangle?
-//                int numberOfLines = newY - y;
-//                int64_t rectSize = lineSurface * numberOfLines;
-//                std::cout << "Scanned downward to " << newY << ", thus there are " << numberOfLines << " lines w/ surface " << lineSurface << " for a total of " << rectSize << "\n";
-//                surface += rectSize;
-//                // this line itself is a special case, calculate this line in isolation.
-//                int64_t cornerScan = surfaceOfLine(newY, minX, horizontalScannerStart, horizontalScannerEnd);
-//                std::cout << "Corner scan result: " << cornerScan << "\n";
-//                surface += cornerScan;
-//                // prepare the next loop iteration with this y.
-//                y = newY + 1;
-//            }
+            if (hadCorners) { // can't do any rectangle stuff, do just this line and try the next Y.
+                surface += lineSurface;
+                y++;
+            } else {
+                int nextY = findNextYTarget(verticalScanner, verticalScannerEnd, y);
+
+                surface += (lineSurface * (nextY - y));
+                y = nextY;
+            }
 
             if (y > maxY) break; // shaves a useless iteration whose result would be '0'.
         }
@@ -232,7 +170,7 @@ private:
     }
 
     // scans the surface of a single line given a y (the line), a starting X, and a start & end iterator.
-    static int64_t surfaceOfLine(
+    static std::pair<int64_t, bool> surfaceOfLine(
             const int y,
             const int minX,
             const auto horizontalScannerStart,
@@ -241,10 +179,10 @@ private:
         int64_t lineSurface = 0;
         int x = minX;
         bool inside = false;
+        bool hadCorners = false; // used in return for the vertical line rectangle recognition.
         auto scanner = horizontalScannerStart;
 
         while (scanner != horizontalScannerEnd) {
-            //std::cout << "\tWith " << x << ", " << y << " Currently considering: " << scanner->brief() << "\n";
             int horizontalX = scanner->start.first;
             bool beforeX = horizontalX < x;
             bool intersects = scanner->alignedVertically(y);
@@ -254,17 +192,13 @@ private:
                 continue;
             }
 
-            // We are now at a line piece after the current X, and it is on our path.
-            //std::cout << "\t\tINTERSECT " << x << ", " << y << " with " << scanner->brief() << "\n";
-
             int newX = scanner->start.first;
             int64_t xDiff = newX - x + 1;
-            //std::cout << "\t\t\tdiff is " << xDiff << "...\n";
 
             x = newX;
             if (scanner->isOnEdge(x, y)) {
-                //std::cout << "\t\tDevious corner spotted\n";
-                if (inside) { // we were inside before hitting the corner. Apply the diff, but one less or we count a tile double.
+                hadCorners = true;
+                if (inside) { // we were inside before hitting the corner. Apply the diff, but one less, or we count a tile double.
                     lineSurface += xDiff - 1;
                 }
                 // we are intersecting a vertical piece through a corner, i.e. we are on a horizontal line.
@@ -276,7 +210,6 @@ private:
                     ++scanner;
                 } while (! scanner->alignedVertically(y));
                 newX = scanner->start.first;
-                //std::cout << "\t\tSpotted horizontal line from " << x << " until " << newX << "\n";
                 int hLen = newX - x + 1;
                 lineSurface += hLen; // always add, edges are inside.
                 bool newCornerFacesUp = y > std::min(scanner->start.second, scanner->end.second);
@@ -291,11 +224,10 @@ private:
                 }
                 inside = !inside;
             }
-            //std::cout << "\tEnd of iteration, surface: " << lineSurface << ", inside: " << inside << ", x: " << x << "\n";
             ++scanner; // No matter on corner or normal intersect, always discard the last considered piece, we are done with it.
         }
 
-        return lineSurface;
+        return std::make_pair(lineSurface, hadCorners);
     }
 
     static void instructionsToCoords(const std::vector<DigInstruction>& ins, std::vector<std::pair<int,int>>& coords) {
