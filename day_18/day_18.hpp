@@ -224,6 +224,8 @@ public:
         reportSolution(surface);
     }
 
+    // todo: revise problem 1 to do it with some kind of sort on the line pieces instead.
+    //  Such that we can always skip to the next line pieces of a line.
     void v2() const override {
         reportSolution(0);
     }
