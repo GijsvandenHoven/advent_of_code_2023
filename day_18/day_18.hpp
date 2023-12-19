@@ -236,62 +236,119 @@ private:
             const auto horizontalScannerEnd
     ) {
         int64_t lineSurface = 0;
-        bool inside = false;
-        bool onHorizontal = false;
-        bool lastCornerFacedUp = false;
-        int insideCornerOffset = 0;
         int x = minX;
-        auto horizontalScanner = horizontalScannerStart;
-        while (horizontalScanner != horizontalScannerEnd) {
-            std::cout << "\tWith " << x << ", " << y << " Currently considering: " << horizontalScanner->brief() << "\n";
-            // get the difference between our current X and the next vertical line intersecting us.
-            // so find the first vertical line intersecting us...
-            int horizontalX = horizontalScanner->start.first;
+        bool inside = false;
+        auto scanner = horizontalScannerStart;
 
-            if (horizontalScanner->start.first < x || ! horizontalScanner->alignedVertically(y)) { // not intersecting, continue
-                ++horizontalScanner;
+        while (scanner != horizontalScannerEnd) {
+            std::cout << "\tWith " << x << ", " << y << " Currently considering: " << scanner->brief() << "\n";
+            int horizontalX = scanner->start.first;
+            bool beforeX = horizontalX < x;
+            bool intersects = scanner->alignedVertically(y);
+
+            if (beforeX || !intersects) {
+                ++scanner;
                 continue;
             }
 
-            std::cout << "\t\tINTERSECTION " << x << ", " << y << " with " << horizontalScanner->brief() << "\n";
+            // We are now at a line piece after the current X, and it is on our path.
+            std::cout << "\t\tINTERSECT " << x << ", " << y << " with " << scanner->brief() << "\n";
 
-            // this piece is past us. how much?
-            int diff = horizontalX - x + 1; // beware, this is off by one for inside-to-corner and corner-to-inside transitions.
-            if (inside || onHorizontal) {
-                lineSurface += diff;
-                std::cout << "\t\t\tIncrease linesurface by " << diff << " to " << lineSurface << "\n";
-            }
+            int newX = scanner->start.first;
+            int64_t xDiff = newX - x + 1;
+            std::cout << "\t\t\tdiff is " << xDiff << "...\n";
 
-            // update variables.
-            x = horizontalX;
-            if (horizontalScanner->isOnEdge(x, y)) { // riding a corner now, we do this to not flip inside again when we hit the other corner.
-
-                // The 'inside' status is determined if we are leaving a horizontal, but the two corners were opposing.
-                int yLowest = std::max(horizontalScanner->start.second, horizontalScanner->end.second);
-                bool thisCornerFacesUp = yLowest == y;
-                if (onHorizontal) {
-                    inside = lastCornerFacedUp != thisCornerFacesUp;
-                    if (inside) {
-                        insideCornerOffset ++; // from corner to inside, increase off-by-1 error correction.
-                    }
-                } else { // not on horizontal currently
-                    if (inside) {
-                        insideCornerOffset ++; // from inside to corner, increase off-by-1 error correction;
-                    }
-                    inside = false; // not inside anymore, we are on a corner.
+            x = newX;
+            if (scanner->isOnEdge(x, y)) {
+                std::cout << "\t\tDevious corner spotted\n";
+                if (inside) { // we were inside before hitting the corner. Apply the diff, but one less or we count a tile double.
+                    lineSurface += xDiff - 1;
                 }
-                lastCornerFacedUp = thisCornerFacesUp;
-                onHorizontal = ! onHorizontal;
-            } else { // cleanly going through a vertical line, we are now flipping the status.
-                inside = ! inside;
+                // we are intersecting a vertical piece through a corner, i.e. we are on a horizontal line.
+                // Go forward until the end of the horizontal line, add that much to the line surface, determine if we are inside or not.
+                // Because we always 'go forward until after the horizontal' on hitting a corner, we never hit the front-side of a corner, always the start.
+                // It is therefore also impossible to hit horizontalScannerEnd, i.e. we do not need to check for this.
+                bool thisCornerFacesUp = y > std::min(scanner->start.second, scanner->end.second);
+                do {
+                    ++scanner;
+                } while (! scanner->alignedVertically(y));
+                newX = scanner->start.first;
+                std::cout << "\t\tSpotted horizontal line from " << x << " until " << newX << "\n";
+                int hLen = newX - x + 1;
+                lineSurface += hLen; // always add, edges are inside.
+                bool newCornerFacesUp = y > std::min(scanner->start.second, scanner->end.second);
+                bool flipState = thisCornerFacesUp != newCornerFacesUp;
+                if (flipState) { // opposing corners rule.
+                    inside = ! inside;
+                }
+                x = newX + 1; // set the seek point past this X, so we do not count again the corner piece we're at now.
+            } else { // cleanly through a vertical line, flip the inside status.
+                if (inside) { // we were inside, so applly the diff now.
+                    lineSurface += xDiff;
+                }
+                inside = !inside;
             }
-            std::cout << "\t\tNew params. inside: " << inside << ", onHorizontal: " << onHorizontal
-            << ", lastFacing: " << lastCornerFacedUp << ", offset: " << insideCornerOffset
-            << ", x: " << x << "\n";
-            ++horizontalScanner;
+            std::cout << "\tEnd of iteration, surface: " << lineSurface << ", inside: " << inside << ", x: " << x << "\n";
+            ++scanner; // No matter on corner or normal intersect, always discard the last considered piece, we are done with it.
         }
 
-        return lineSurface - insideCornerOffset;
+        return lineSurface;
+//        bool inside = false;
+//        bool onHorizontal = false;
+//        bool lastCornerFacedUp = false;
+//        int insideCornerOffset = 0;
+//        int x = minX;
+//        auto horizontalScanner = horizontalScannerStart;
+//        while (horizontalScanner != horizontalScannerEnd) {
+//            std::cout << "\tWith " << x << ", " << y << " Currently considering: " << horizontalScanner->brief() << "\n";
+//            // get the difference between our current X and the next vertical line intersecting us.
+//            // so find the first vertical line intersecting us...
+//            int horizontalX = horizontalScanner->start.first;
+//
+//            if (horizontalScanner->start.first < x || ! horizontalScanner->alignedVertically(y)) { // not intersecting, continue
+//                ++horizontalScanner;
+//                continue;
+//            }
+//
+//            std::cout << "\t\tINTERSECTION " << x << ", " << y << " with " << horizontalScanner->brief() << "\n";
+//
+//            // this piece is past us. how much?
+//            int diff = horizontalX - x + 1; // beware, this is off by one for inside-to-corner and corner-to-inside transitions.
+//            if (inside || onHorizontal) {
+//                lineSurface += diff;
+//                std::cout << "\t\t\tIncrease linesurface by " << diff << " to " << lineSurface << "\n";
+//            }
+//
+//            // update variables.
+//            x = horizontalX;
+//            if (horizontalScanner->isOnEdge(x, y)) { // riding a corner now, we do this to not flip inside again when we hit the other corner.
+//
+//                // The 'inside' status is determined if we are leaving a horizontal, but the two corners were opposing.
+//                int yLowest = std::max(horizontalScanner->start.second, horizontalScanner->end.second);
+//                bool thisCornerFacesUp = yLowest == y;
+//                if (onHorizontal) {
+//                    inside = lastCornerFacedUp != thisCornerFacesUp;
+//                    if (inside) {
+//                        insideCornerOffset ++; // from corner to inside, increase off-by-1 error correction.
+//                    }
+//                } else { // not on horizontal currently
+//                    if (inside) {
+//                        insideCornerOffset ++; // from inside to corner, increase off-by-1 error correction;
+//                    }
+//                    inside = false; // not inside anymore, we are on a corner.
+//                }
+//                lastCornerFacedUp = thisCornerFacesUp;
+//                onHorizontal = ! onHorizontal;
+//            } else { // cleanly going through a vertical line, we are now flipping the status.
+//                inside = ! inside;
+//            }
+//            std::cout << "\t\tNew params. inside: " << inside << ", onHorizontal: " << onHorizontal
+//            << ", lastFacing: " << lastCornerFacedUp << ", offset: " << insideCornerOffset
+//            << ", x: " << x << "\n";
+//            ++horizontalScanner;
+//        }
+//
+//        return lineSurface - insideCornerOffset;
     }
 
     static void instructionsToCoords(const std::vector<DigInstruction>& ins, std::vector<std::pair<int,int>>& coords) {
