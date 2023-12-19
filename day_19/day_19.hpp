@@ -190,7 +190,6 @@ public:
         reportSolution(accepted_xmas_sum);
     }
 
-    // todo: This probably is doable if you make range objects and split them apart for every rule, recursion-style, then count all the accepted ranges.
     void v2() const override {
         reportSolution(recursiveCombinatorialCountWithRange(Range(), ENTRY_LABEL));
     }
@@ -266,7 +265,10 @@ private:
             std::array<Range, 2> split;
             int newRanges = workingWith.split(rule, split);
             switch (newRanges) {
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode"
                 default: throw std::logic_error("Unknown number of split ranges");
+#pragma clang diagnostic pop
                 case 0: // nothing satisfies the rule, try the next rule in this list.
                     ruleIndex ++;
                     break;
@@ -321,6 +323,9 @@ private:
         functions.emplace(label, std::move(f));
     }
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnusedLocalVariable" // stupid IDE thinks the value-captured variables are unused.
+#pragma ide diagnostic ignored "UnusedValue"
     static Functor parseFunction(const std::string& from, bool compose, Functor& composeWith) {
         auto conditionPosition = from.find(':');
 
@@ -374,6 +379,7 @@ private:
             return newF;
         }
     }
+#pragma clang diagnostic pop
 
     void addRule(const std::string& from) {
         std::istringstream s(from);
