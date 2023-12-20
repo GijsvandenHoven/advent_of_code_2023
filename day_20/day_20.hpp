@@ -26,6 +26,9 @@ struct ModuleBlueprint {
     std::string name;
     std::vector<std::string> outputConnections;
     ModuleType t;
+
+    ModuleBlueprint() = delete;
+    ModuleBlueprint(std::string s, std::vector<std::string>&& o, ModuleType _t) : name(std::move(s)), outputConnections(o), t(_t) {}
 };
 
 struct Module {
@@ -46,7 +49,6 @@ struct Module {
     Module() = delete;
     explicit Module(std::string n) : name(std::move(n)) {}
     virtual ~Module() = default;
-    [[nodiscard]] virtual std::unique_ptr<Module> clone() const = 0; // beware, also clones e.g. the outputConnections vector, referencing non-cloned pointers.
 };
 
 struct TransmitModule : public Module {
@@ -54,10 +56,6 @@ struct TransmitModule : public Module {
 
     Signal incomingSignal(const Module * from, Signal s) override {
         return s; // it just forwards the signal.
-    }
-
-    [[nodiscard]] std::unique_ptr<Module> clone() const override {
-        return std::make_unique<TransmitModule>(*this);
     }
 };
 
@@ -73,10 +71,6 @@ struct OutputModule : public Module {
     Signal incomingSignal(const Module * from, Signal s) override {
         state = s;
         return Signal::NONE; // nothing should happen. it's just an output module.
-    }
-
-    [[nodiscard]] std::unique_ptr<Module> clone() const override {
-        return std::make_unique<OutputModule>(*this);
     }
 };
 
@@ -95,10 +89,6 @@ struct FlipModule : public Module {
         } // high signals are ignored.
 
         return Signal::NONE;
-    }
-
-    [[nodiscard]] std::unique_ptr<Module> clone() const override {
-        return std::make_unique<FlipModule>(*this);
     }
 };
 
@@ -130,10 +120,6 @@ struct ConjunctModule : public Module {
         }
 
         return Signal::LOW;
-    }
-
-    [[nodiscard]] std::unique_ptr<Module> clone() const override {
-        return std::make_unique<ConjunctModule>(*this);
     }
 };
 
@@ -214,7 +200,7 @@ public:
                 if (iter == moduleBlueprint.end()) { // this referenced label does not exist. Straggler!
                     // do not mutate moduleBlueprint here. That invalidates iterators to the range-based for loop.
                     // Using the map here also prevents duplicates from being added.
-                    stragglers[name] = { name, {}, ModuleType::OUTPUT};
+                    stragglers.emplace(name, ModuleBlueprint(name, std::vector<std::string>(), ModuleType::OUTPUT));
                 }
             }
         }
