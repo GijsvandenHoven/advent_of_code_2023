@@ -241,7 +241,7 @@ public:
     // Otherwise, the problem is allegedly NP-hard (The circuits could form Circuit-SAT).
     void v2() const override {
 
-        // find the 'thing' that connects to the output node.
+        // find the module that connects to the output node.
         auto outputIter = moduleBlueprint.end();
         for (auto iter = moduleBlueprint.begin(); iter != moduleBlueprint.end(); ++iter) {
             auto& c = iter->outputConnections;
@@ -257,6 +257,7 @@ public:
         if (outputIter == moduleBlueprint.end()) throw std::logic_error("Could not find module connected to '" + P2_OUTPUT_NAME + "'.");
         if (outputIter->t != ModuleType::CONJUNCT) throw std::logic_error("Expected the connected-to-output Module to be a ConjunctModule");
 
+        // find the modules that connect to the output-connecting-node.
         std::vector<std::string> connectedToConjunct;
         for (auto& p : moduleBlueprint) {
             auto iter = std::find_if(p.outputConnections.begin(), p.outputConnections.end(), [&n = outputIter->name](auto& name){
@@ -267,34 +268,6 @@ public:
                 connectedToConjunct.emplace_back(p.name);
             }
         }
-
-
-//        const Module * connectedToOut = nullptr;
-//        for (auto& p : moduleBlueprint) {
-//            auto iter = std::find_if(p->outputConnections.begin(), p->outputConnections.end(), [](auto * p){
-//                return p->name == P2_OUTPUT_NAME;
-//            });
-//            if (iter != p->outputConnections.end()) {
-//                if (connectedToOut != nullptr) {
-//                    throw std::logic_error("Expected exactly one node connected to output target.");
-//                } else {
-//                    connectedToOut = p.get();
-//                }
-//            }
-//        }
-//
-//        const auto * lastConjunct = dynamic_cast<const ConjunctModule *>(connectedToOut); // dyn casting nullptr is safe, it gives nullptr just like an invalid module type would.
-//        if (lastConjunct == nullptr) {
-//            throw std::logic_error("Expected the output Module (if any) to be a ConjunctModule.");
-//        }
-//
-//        std::vector<std::string> connectedToConjunct;
-//        for (auto& p : moduleBlueprint) {
-//            auto iter = std::find(p->outputConnections.begin(), p->outputConnections.end(), lastConjunct);
-//            if (iter != p->outputConnections.end()) {
-//                connectedToConjunct.push_back(p->name);
-//            }
-//        }
 
         // The stop condition is defined as the first time one of the connected-to-conjuncts outputs HIGH.
         // Since it is ASSUMED THAT THESE ARE BINARY COUNTERS, I.E. PULSE HIGH AND INSTANTLY GO LOW AGAIN (!!)
@@ -427,23 +400,6 @@ private:
         return i;
     }
 
-    [[noreturn]] [[maybe_unused]] static void generateTableOfState(Module * startingPoint, Module * whom) {
-        Signal lastKnownState = Signal::NONE;
-        int i = 0;
-
-        auto callback = [whom, &lastKnownState, &i](Module * t, Module * f, Signal s){
-            if (f == whom && s != lastKnownState) {
-                lastKnownState = s;
-                std::cout << i << "\t: " << s << "\n";
-            }
-        };
-
-        while (true) {
-            i++;
-            emulateSignalEnteringModule(startingPoint, Signal::LOW, callback);
-        }
-    }
-
     /**
      * Emulates the circuit (mutating the state of all affected Modules) given an incoming signal S to a module enterPoint.
      * @param enterPoint the Module that shall receive the input signal. The 'from' parameter of 'incomingSignal' shall be nullptr.
@@ -472,6 +428,23 @@ private:
             for (auto * p : to->outputConnections) { // enqueue processing of connected modules.
                 queue.emplace(p, to, output);
             }
+        }
+    }
+
+    [[noreturn]] [[maybe_unused]] static void generateTableOfState(Module * startingPoint, Module * whom) {
+        Signal lastKnownState = Signal::NONE;
+        int i = 0;
+
+        auto callback = [whom, &lastKnownState, &i](Module * t, Module * f, Signal s){
+            if (f == whom && s != lastKnownState) {
+                lastKnownState = s;
+                std::cout << i << "\t: " << s << "\n";
+            }
+        };
+
+        while (true) {
+            i++;
+            emulateSignalEnteringModule(startingPoint, Signal::LOW, callback);
         }
     }
 };
