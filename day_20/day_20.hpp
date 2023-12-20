@@ -38,7 +38,7 @@ struct Module {
     Module() = delete;
     explicit Module(std::string n) : name(std::move(n)) {}
     virtual ~Module() = default;
-    [[nodiscard]] virtual std::unique_ptr<Module> clone() const = 0;
+    [[nodiscard]] virtual std::unique_ptr<Module> clone() const = 0; // beware, also clones e.g. the outputConnections vector, referencing non-cloned pointers.
 };
 
 struct TransmitModule : public Module {
@@ -56,11 +56,14 @@ struct TransmitModule : public Module {
 struct OutputModule : public Module {
     using Module::Module;
 
+    Signal state = Signal::NONE;
+
     void addConnection(Module * connectingTo) override {
         throw std::logic_error("OutputModule should not be connected to anything.");
     }
 
     Signal incomingSignal(const Module * from, Signal s) override {
+        state = s;
         return Signal::NONE; // nothing should happen. it's just an output module.
     }
 
@@ -188,18 +191,28 @@ public:
         std::vector<std::unique_ptr<Module>> stragglers; // Only referenced in output, do not transmit anything. The second example does this with 'output'.
         for (auto& [ptr, cons] : connections) {
             for (auto& lbl : cons) {
-                std::cout << "For " << ptr->name << " Try to connect '" << lbl << "'\n";
+                // std::cout << "For " << ptr->name << " Try to connect '" << lbl << "'\n";
                 auto iter = std::find_if(connections.begin(), connections.end(), [&lbl](auto& item) {
                     return item.first->name == lbl;
                 });
 
                 if (iter == connections.end()) {
-                    std::cout << "WARNING: " << "Connection references unknown module: " << lbl << "\n";
-                    std::cout << "It will be created as an output module, as it was not parsed during the first pass.\n";
+                    // std::cout << "WARNING: " << "Connection references unknown module: " << lbl << "\n";
+                    // std::cout << "It may be created as an output module, as it was not parsed during the first pass.\n";
 
-                    stragglers.emplace_back(std::make_unique<OutputModule>(lbl));
-                    ptr->addConnection(stragglers.back().get());
-                    stragglers.back()->connectedTo(ptr.get());
+                    // If multiple nodes reference the same output module, it might already exist? This is not present in the puzzle, however.
+                    auto seek = std::find_if(stragglers.begin(), stragglers.end(), [&lbl](auto& s){
+                        return s->name == lbl;
+                    });
+
+                    if (seek == stragglers.end()) {
+                        stragglers.emplace_back(std::make_unique<OutputModule>(lbl));
+                        ptr->addConnection(stragglers.back().get());
+                        stragglers.back()->connectedTo(ptr.get());
+                    } else {
+                        ptr->addConnection(seek->get());
+                        seek->get()->connectedTo(ptr.get());
+                    }
                 } else {
                     ptr->addConnection(iter->first.get());
                     iter->first->connectedTo(ptr.get());
@@ -220,14 +233,21 @@ public:
         std::vector<std::unique_ptr<Module>> mutableCopy;
         createMutableCopy(mutableCopy);
 
-
-
-        auto [lo, hi] = countLowAndHighPulses(1000, getStartingPoint(mutableCopy));
+        auto [lo, hi] = countLowAndHighPulses(1000, findByName(mutableCopy, BROADCASTER_NAME));
         reportSolution(lo * hi);
     }
 
     void v2() const override {
-        reportSolution(0);
+        std::vector<std::unique_ptr<Module>> mutableCopy;
+        createMutableCopy(mutableCopy);
+
+        Module * target = findByName(mutableCopy, "output");
+
+        auto stopCondition = [target](Module * t, Module * f, Signal s){
+            return t == target && s == Signal::LOW;
+        };
+
+        reportSolution(countCyclesUntilCondition(findByName(mutableCopy, BROADCASTER_NAME), stopCondition));
     }
 
     void parseBenchReset() override {
@@ -241,28 +261,55 @@ private:
     std::vector<std::unique_ptr<const Module>> moduleBlueprint;
     static constexpr std::string BROADCASTER_NAME = "broadcaster";
 
+    // very hairy code due to the use of pointers in member variables of Module.
     void createMutableCopy(std::vector<std::unique_ptr<Module>>& modules) const {
         modules.clear();
         for (auto& ptr : moduleBlueprint) {
             modules.emplace_back(ptr->clone());
+
+            // ConjunctModules should have their memory cleared, they hold pointers to the non-mutable instances of module.
+            auto * copy = modules.back().get();
+            auto * derivedCopy = dynamic_cast<ConjunctModule *>(copy);
+            if (derivedCopy != nullptr) {
+                derivedCopy->inputConnections.clear();
+            }
+        }
+        // need to update the outputConnections vector also, or we are pointing to const Modules in the blueprint! very dangerous.
+        for (auto& ptr : modules) {
+            for (auto& oldTarget : ptr->outputConnections) {
+                const std::string& name = oldTarget->name;
+                auto iter = std::find_if(modules.begin(), modules.end(), [&name](auto& newP) {
+                    return newP->name == name;
+                });
+                if (iter == modules.end()) throw std::logic_error("Could not find " + name + " In mutable copy?");
+
+                oldTarget = iter->get(); // this is a manual instance of addConnection(), rather, it is a swap.
+                // oldTarget is now updated. Notify it that it was connected to ptr.
+                oldTarget->connectedTo(ptr.get());
+            }
         }
     }
 
-    static Module * getStartingPoint(std::vector<std::unique_ptr<Module>>& modules) {
-        auto iter = std::find_if(modules.begin(), modules.end(), [](auto& ptr) {
-            return ptr->name == BROADCASTER_NAME;
+    static Module * findByName(std::vector<std::unique_ptr<Module>>& modules, const std::string& name) {
+        auto iter = std::find_if(modules.begin(), modules.end(), [&name](auto& ptr) {
+            return ptr->name == name;
         });
-        if (iter == modules.end()) throw std::logic_error("Could not find module: " + BROADCASTER_NAME);
+        if (iter == modules.end()) throw std::logic_error("Could not find module: " + name);
 
         return iter->get();
     }
 
     // No null checks are made, Assumes the input Module pointer, and all transitively pointed-to modules to exist.
+    // WARNING: No memoization is done, it just runs the cycle amount you give it.
+    // A mutable pointer is necessary, because previous cycles can affect the current cycle.
+    // e.g. a ConjunctModule's memory or FlipModule's state can be different per cycle.
+    // returns the low and high signal count respectively.
     [[nodiscard]] static std::pair<int,int> countLowAndHighPulses(int cycles, Module * startingPoint) {
         int lo_count = 0;
         int hi_count = 0;
 
-        auto registerPulse = [&lo_count, &hi_count](Signal s){
+        // callback passed to emulateSignalEnteringModule, only the signal is important to us.
+        auto registerPulse = [&lo_count, &hi_count](Module*,Module*,Signal s){
             switch (s) {
                 default: break; // do nothing, e.g. for 'NONE' signal.
                 case Signal::LOW: lo_count++; break;
@@ -271,27 +318,62 @@ private:
         };
 
         for (int i = 0; i < cycles; ++i) {
-            //std::cout << "Cycle " << i << "\n";
-            std::queue<std::tuple<Module *, Module *, Signal>> queue; // to, from, signal.
-            queue.emplace(startingPoint, nullptr, Signal::LOW); // start by emplacing a low signal from 'nothing' to the starting point.
-
-            while (! queue.empty()) {
-                auto [to, from, signal] = queue.front();
-                queue.pop();
-                registerPulse(signal);
-
-                //std::cout << "\t" << "from '" << (from ? from->name : "0x0") << "' handle '" << signal << "' to '" << to->name << "'\n";
-
-                Signal output = to->incomingSignal(from, signal);
-                if (output == Signal::NONE) continue; // The signal is eaten, connected modules receive nothing.
-
-                for (auto * p : to->outputConnections) { // enqueue processing of connected modules.
-                    queue.emplace(p, to, output);
-                }
-            }
+            emulateSignalEnteringModule(startingPoint, Signal::LOW, registerPulse);
         }
 
         return std::make_pair(lo_count, hi_count);
+    }
+
+    [[nodiscard]] static int countCyclesUntilCondition(
+            Module * startingPoint,
+            const std::function<bool(Module*, Module*, Signal)>& stopCondition
+    ) {
+        int i = 0;
+        bool work = true;
+
+        auto callback = [&work, &stopCondition](Module* t,Module* f,Signal s) -> void {
+            bool shouldStop = stopCondition(t,f,s);
+            if (work && shouldStop) {
+                work = false;
+            }
+        };
+
+        while (work) {
+            i++;
+            emulateSignalEnteringModule(startingPoint, Signal::LOW, callback);
+        }
+        return i;
+    }
+
+    /**
+     * Emulates the circuit (mutating the state of all affected Modules) given an incoming signal S to a module enterPoint.
+     * @param enterPoint the Module that shall receive the input signal. The 'from' parameter of 'incomingSignal' shall be nullptr.
+     * @param s the Signal that the module shall receive.
+     * @param callback  this function is called for every module that is about to receive a signal. It has 3 params:
+     *                  'to' (who is receiving),
+     *                  'from': (who is sending)
+     *                  's': (What signal is being sent)
+     */
+    static void emulateSignalEnteringModule(
+            Module * enterPoint,
+            Signal s,
+            const std::function<void(Module* to, Module* from, Signal s)>& callback = [](auto,auto,auto){}
+    ) {
+        std::queue<std::tuple<Module *, Module *, Signal>> queue; // to, from, signal.
+        queue.emplace(enterPoint, nullptr, s); // start by emplacing a low signal from 'nothing' to the starting point.
+
+        while (! queue.empty()) {
+            auto [to, from, signal] = queue.front();
+            queue.pop();
+            callback(to, from, signal);
+
+            Signal output = to->incomingSignal(from, signal);
+            if (output == Signal::NONE) continue; // The signal is eaten, connected modules receive nothing.
+
+            for (auto * p : to->outputConnections) { // enqueue processing of connected modules.
+                queue.emplace(p, to, output);
+            }
+        }
     }
 };
 
