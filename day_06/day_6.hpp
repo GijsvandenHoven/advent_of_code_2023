@@ -109,33 +109,6 @@ private:
         return std::make_pair(lower_bound, upper_bound);
     }
 
-    void parseInput(std::ifstream& input) {
-        int c;
-        while((c = input.get()) != EOF && c != ':')
-            ;
-
-        {
-            int n;
-            while (input >> n) {
-                race_times.push_back(n);
-            }
-            input.clear();
-        }
-
-        while((c = input.get()) != EOF && c != ':')
-            ;
-
-        {
-            int n;
-            while (input >> n) {
-                race_distances.push_back(n);
-            }
-            input.clear();
-        }
-
-        if (race_distances.size() != race_times.size()) throw std::logic_error("Race and Dist number vectors should have equal size");
-    }
-
     void parseBenchReset() override {
         race_times.clear();
         race_distances.clear();
