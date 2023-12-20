@@ -38,7 +38,7 @@ struct Module {
     Module() = delete;
     explicit Module(std::string n) : name(std::move(n)) {}
     virtual ~Module() = default;
-    virtual std::unique_ptr<Module> clone() const = 0;
+    [[nodiscard]] virtual std::unique_ptr<Module> clone() const = 0;
 };
 
 struct TransmitModule : public Module {
@@ -50,6 +50,22 @@ struct TransmitModule : public Module {
 
     [[nodiscard]] std::unique_ptr<Module> clone() const override {
         return std::make_unique<TransmitModule>(*this);
+    }
+};
+
+struct OutputModule : public Module {
+    using Module::Module;
+
+    void addConnection(Module * connectingTo) override {
+        throw std::logic_error("OutputModule should not be connected to anything.");
+    }
+
+    Signal incomingSignal(const Module * from, Signal s) override {
+        return Signal::NONE; // nothing should happen. it's just an output module.
+    }
+
+    [[nodiscard]] std::unique_ptr<Module> clone() const override {
+        return std::make_unique<OutputModule>(*this);
     }
 };
 
@@ -169,6 +185,7 @@ public:
 
         // after this point, the connections vec is filled with modules and who they should connect to.
         // And all labels referenced should exist now.
+        std::vector<std::unique_ptr<Module>> stragglers; // Only referenced in output, do not transmit anything. The second example does this with 'output'.
         for (auto& [ptr, cons] : connections) {
             for (auto& lbl : cons) {
                 std::cout << "For " << ptr->name << " Try to connect '" << lbl << "'\n";
@@ -176,15 +193,25 @@ public:
                     return item.first->name == lbl;
                 });
 
-                if (iter == connections.end()) throw std::logic_error("Connection references unknown module: " + lbl);
+                if (iter == connections.end()) {
+                    std::cout << "WARNING: " << "Connection references unknown module: " << lbl << "\n";
+                    std::cout << "It will be created as an output module, as it was not parsed during the first pass.\n";
 
-                ptr->addConnection(iter->first.get());
-                iter->first->connectedTo(ptr.get());
+                    stragglers.emplace_back(std::make_unique<OutputModule>(lbl));
+                    ptr->addConnection(stragglers.back().get());
+                    stragglers.back()->connectedTo(ptr.get());
+                } else {
+                    ptr->addConnection(iter->first.get());
+                    iter->first->connectedTo(ptr.get());
+                }
             }
         }
 
         for (auto & connection : connections) { // Module creating complete, move the pointer ownership to the member vector.
             moduleBlueprint.emplace_back(std::move(connection.first));
+        }
+        for (auto & straggler : stragglers) {
+            moduleBlueprint.emplace_back(std::move(straggler));
         }
     }
 
@@ -244,7 +271,7 @@ private:
         };
 
         for (int i = 0; i < cycles; ++i) {
-            std::cout << "Cycle " << i << "\n";
+            //std::cout << "Cycle " << i << "\n";
             std::queue<std::tuple<Module *, Module *, Signal>> queue; // to, from, signal.
             queue.emplace(startingPoint, nullptr, Signal::LOW); // start by emplacing a low signal from 'nothing' to the starting point.
 
@@ -253,7 +280,7 @@ private:
                 queue.pop();
                 registerPulse(signal);
 
-                std::cout << "\t" << "from '" << (from ? from->name : "0x0") << "' handle '" << signal << "' to '" << to->name << "'\n";
+                //std::cout << "\t" << "from '" << (from ? from->name : "0x0") << "' handle '" << signal << "' to '" << to->name << "'\n";
 
                 Signal output = to->incomingSignal(from, signal);
                 if (output == Signal::NONE) continue; // The signal is eaten, connected modules receive nothing.
