@@ -238,16 +238,17 @@ public:
     }
 
     void v2() const override {
-        std::vector<std::unique_ptr<Module>> mutableCopy;
-        createMutableCopy(mutableCopy);
-
-        Module * target = findByName(mutableCopy, "output");
-
-        auto stopCondition = [target](Module * t, Module * f, Signal s){
-            return t == target && s == Signal::LOW;
-        };
-
-        reportSolution(countCyclesUntilCondition(findByName(mutableCopy, BROADCASTER_NAME), stopCondition));
+        reportSolution(0);
+//        std::vector<std::unique_ptr<Module>> mutableCopy;
+//        createMutableCopy(mutableCopy);
+//
+//        Module * target = findByName(mutableCopy, "output");
+//
+//        auto stopCondition = [target](Module * t, Module * f, Signal s){
+//            return t == target && s == Signal::LOW;
+//        };
+//
+//        reportSolution(countCyclesUntilCondition(findByName(mutableCopy, BROADCASTER_NAME), stopCondition));
     }
 
     void parseBenchReset() override {
