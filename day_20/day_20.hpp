@@ -15,10 +15,18 @@ enum class Signal : uint8_t {
     NONE = 0xFF
 };
 
-std::ostream& operator<<(std::ostream& os, const Signal& s) {
-    switch(s) { default: os << "?"; break; case Signal::LOW: os << "LO"; break; case Signal::HIGH: os<< "HI"; break; case Signal::NONE: os << "NONE"; break; }
-    return os;
-}
+enum class ModuleType : uint8_t { // used by factory for constructing the right polymorphic type from a blueprint.
+    OUTPUT,
+    TRANSMIT,
+    FLIP,
+    CONJUNCT
+};
+
+struct ModuleBlueprint {
+    std::string name;
+    std::vector<std::string> outputConnections;
+    ModuleType t;
+};
 
 struct Module {
     std::string name;
@@ -139,13 +147,17 @@ std::ostream& operator<<(std::ostream& os, const Module& m) {
     return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const Signal& s) {
+    switch(s) { default: os << "?"; break; case Signal::LOW: os << "LO"; break; case Signal::HIGH: os<< "HI"; break; case Signal::NONE: os << "NONE"; break; }
+    return os;
+}
+
 CLASS_DEF(DAY) {
 public:
     DEFAULT_CTOR_DEF(DAY)
 
     void parse(std::ifstream &input) override {
         std::string line;
-        std::vector<std::pair<std::unique_ptr<Module>, std::vector<std::string>>> connections;
         while (std::getline(input, line)) {
             std::istringstream s(line);
 
@@ -153,16 +165,17 @@ public:
             std::string name;
             s >> name;
 
-            std::unique_ptr<Module> m;
+            ModuleType t;
             switch (mode) {
                 case '%':
-                    m = std::make_unique<FlipModule>(name);
+                    t = ModuleType::FLIP;
                     break;
                 case '&':
-                    m = std::make_unique<ConjunctModule>(name);
+                    t = ModuleType::CONJUNCT;
                     break;
                 default: // e.g. 'broadcaster' has no prefix. Such modules are assumed to be transmitters.
-                    m = std::make_unique<TransmitModule>(mode + name);
+                    t = ModuleType::TRANSMIT;
+                    name.insert(0, 1, mode);
                     break;
             }
 
@@ -186,57 +199,37 @@ public:
                 }
             }
 
-            connections.emplace_back(std::move(m), std::move(thisModuleConnections));
+            moduleBlueprint.emplace_back(name, std::move(thisModuleConnections), t);
         }
 
-        // after this point, the connections vec is filled with modules and who they should connect to.
-        // And all labels referenced should exist now.
-        std::vector<std::unique_ptr<Module>> stragglers; // Only referenced in output, do not transmit anything. The second example does this with 'output'.
-        for (auto& [ptr, cons] : connections) {
-            for (auto& lbl : cons) {
-                // std::cout << "For " << ptr->name << " Try to connect '" << lbl << "'\n";
-                auto iter = std::find_if(connections.begin(), connections.end(), [&lbl](auto& item) {
-                    return item.first->name == lbl;
+        // at this point, the parsed Prints are mostly all made. Those not referenced on the LHS such as output modules are not yet in.
+        // We can only find them by evaluating all output connections to see if they are missing.
+        std::map<std::string, ModuleBlueprint> stragglers;
+        for (auto& print : moduleBlueprint) {
+            for (auto& name : print.outputConnections) {
+                auto iter = std::find_if(moduleBlueprint.begin(), moduleBlueprint.end(), [&name](auto& p) {
+                    return p.name == name;
                 });
 
-                if (iter == connections.end()) {
-                    // std::cout << "WARNING: " << "Connection references unknown module: " << lbl << "\n";
-                    // std::cout << "It may be created as an output module, as it was not parsed during the first pass.\n";
-
-                    // If multiple nodes reference the same output module, it might already exist? This is not present in the puzzle, however.
-                    auto seek = std::find_if(stragglers.begin(), stragglers.end(), [&lbl](auto& s){
-                        return s->name == lbl;
-                    });
-
-                    if (seek == stragglers.end()) {
-                        stragglers.emplace_back(std::make_unique<OutputModule>(lbl));
-                        ptr->addConnection(stragglers.back().get());
-                        stragglers.back()->connectedTo(ptr.get());
-                    } else {
-                        ptr->addConnection(seek->get());
-                        seek->get()->connectedTo(ptr.get());
-                    }
-                } else {
-                    ptr->addConnection(iter->first.get());
-                    iter->first->connectedTo(ptr.get());
+                if (iter == moduleBlueprint.end()) { // this referenced label does not exist. Straggler!
+                    // do not mutate moduleBlueprint here. That invalidates iterators to the range-based for loop.
+                    // Using the map here also prevents duplicates from being added.
+                    stragglers[name] = { name, {}, ModuleType::OUTPUT};
                 }
             }
         }
 
-        for (auto & connection : connections) { // Module creating complete, move the pointer ownership to the member vector.
-            moduleBlueprint.emplace_back(std::move(connection.first));
-        }
-        for (auto & straggler : stragglers) {
-            moduleBlueprint.emplace_back(std::move(straggler));
-        }
+        std::for_each(stragglers.begin(), stragglers.end(), [this](auto& pair){
+            moduleBlueprint.emplace_back(std::move(pair.second));
+        });
     }
 
     void v1() const override {
         // make a mutable copy of the input data.
-        std::vector<std::unique_ptr<Module>> mutableCopy;
-        createMutableCopy(mutableCopy);
+        std::vector<std::unique_ptr<Module>> circuit;
+        createFromBlueprint(circuit);
 
-        auto [lo, hi] = countLowAndHighPulses(1000, findByName(mutableCopy, BROADCASTER_NAME));
+        auto [lo, hi] = countLowAndHighPulses(1000, findByName(circuit, BROADCASTER_NAME));
         reportSolution(lo * hi);
     }
 
@@ -249,32 +242,59 @@ public:
     void v2() const override {
 
         // find the 'thing' that connects to the output node.
-        const Module * connectedToOut = nullptr;
-        for (auto& p : moduleBlueprint) {
-            auto iter = std::find_if(p->outputConnections.begin(), p->outputConnections.end(), [](auto * p){
-                return p->name == P2_OUTPUT_NAME;
-            });
-            if (iter != p->outputConnections.end()) {
-                if (connectedToOut != nullptr) {
-                    throw std::logic_error("Expected exactly one node connected to output target.");
+        auto outputIter = moduleBlueprint.end();
+        for (auto iter = moduleBlueprint.begin(); iter != moduleBlueprint.end(); ++iter) {
+            auto& c = iter->outputConnections;
+            if (c.end() != std::find_if(c.begin(), c.end(), [](auto& label){ return label == P2_OUTPUT_NAME; })) {
+                if (outputIter != moduleBlueprint.end()) { // this case does not exist in the puzzle input.
+                    throw std::logic_error("Expected exactly one module connected to " + P2_OUTPUT_NAME + ", found multiple.");
                 } else {
-                    connectedToOut = p.get();
+                    outputIter = iter;
                 }
             }
         }
 
-        const auto * lastConjunct = dynamic_cast<const ConjunctModule *>(connectedToOut); // dyn casting nullptr is safe, it gives nullptr just like an invalid module type would.
-        if (lastConjunct == nullptr) {
-            throw std::logic_error("Expected the output Module (if any) to be a ConjunctModule.");
-        }
+        if (outputIter == moduleBlueprint.end()) throw std::logic_error("Could not find module connected to '" + P2_OUTPUT_NAME + "'.");
+        if (outputIter->t != ModuleType::CONJUNCT) throw std::logic_error("Expected the connected-to-output Module to be a ConjunctModule");
 
         std::vector<std::string> connectedToConjunct;
         for (auto& p : moduleBlueprint) {
-            auto iter = std::find(p->outputConnections.begin(), p->outputConnections.end(), lastConjunct);
-            if (iter != p->outputConnections.end()) {
-                connectedToConjunct.push_back(p->name);
+            auto iter = std::find_if(p.outputConnections.begin(), p.outputConnections.end(), [&n = outputIter->name](auto& name){
+                return name == n;
+            });
+
+            if (iter != p.outputConnections.end()) {
+                connectedToConjunct.emplace_back(p.name);
             }
         }
+
+
+//        const Module * connectedToOut = nullptr;
+//        for (auto& p : moduleBlueprint) {
+//            auto iter = std::find_if(p->outputConnections.begin(), p->outputConnections.end(), [](auto * p){
+//                return p->name == P2_OUTPUT_NAME;
+//            });
+//            if (iter != p->outputConnections.end()) {
+//                if (connectedToOut != nullptr) {
+//                    throw std::logic_error("Expected exactly one node connected to output target.");
+//                } else {
+//                    connectedToOut = p.get();
+//                }
+//            }
+//        }
+//
+//        const auto * lastConjunct = dynamic_cast<const ConjunctModule *>(connectedToOut); // dyn casting nullptr is safe, it gives nullptr just like an invalid module type would.
+//        if (lastConjunct == nullptr) {
+//            throw std::logic_error("Expected the output Module (if any) to be a ConjunctModule.");
+//        }
+//
+//        std::vector<std::string> connectedToConjunct;
+//        for (auto& p : moduleBlueprint) {
+//            auto iter = std::find(p->outputConnections.begin(), p->outputConnections.end(), lastConjunct);
+//            if (iter != p->outputConnections.end()) {
+//                connectedToConjunct.push_back(p->name);
+//            }
+//        }
 
         // The stop condition is defined as the first time one of the connected-to-conjuncts outputs HIGH.
         // Since it is ASSUMED THAT THESE ARE BINARY COUNTERS, I.E. PULSE HIGH AND INSTANTLY GO LOW AGAIN (!!)
@@ -287,11 +307,11 @@ public:
         };
 
         uint64_t lcm = 1;
-        std::vector<std::unique_ptr<Module>> mutableCopy;
+        std::vector<std::unique_ptr<Module>> circuit;
         for (const auto& name : connectedToConjunct) {
-            createMutableCopy(mutableCopy); // resets the vector, this is necessary each time to start from cycle 0 as intended.
-            auto start = findByName(mutableCopy, BROADCASTER_NAME);
-            auto target = findByName(mutableCopy, name); // Re-do this each time. They would be invalid after the mutable copy is re-cloned!
+            createFromBlueprint(circuit); // resets the vector, this is necessary each time to start from cycle 0 as intended.
+            auto start = findByName(circuit, BROADCASTER_NAME);
+            auto target = findByName(circuit, name); // Re-do this each time. They would be invalid after the mutable copy is re-cloned!
 
             uint64_t countUntilCycle = countCyclesUntilCondition(start, stopCondition(target));
             lcm = std::lcm(lcm, countUntilCycle);
@@ -308,35 +328,44 @@ private:
     // immutable blueprint of the parsed input.
     // Solvers should make copies of this object; This is to allow repeatability during benchmarking,
     // And disallow interference of subsequent solvers.
-    std::vector<std::unique_ptr<const Module>> moduleBlueprint;
+    std::vector<ModuleBlueprint> moduleBlueprint;
     static constexpr std::string BROADCASTER_NAME = "broadcaster";
     static constexpr std::string P2_OUTPUT_NAME = "rx";
 
     // very hairy code due to the use of pointers in member variables of Module.
-    void createMutableCopy(std::vector<std::unique_ptr<Module>>& modules) const {
+    void createFromBlueprint(std::vector<std::unique_ptr<Module>>& modules) const {
         modules.clear();
-        for (auto& ptr : moduleBlueprint) {
-            modules.emplace_back(ptr->clone());
 
-            // ConjunctModules should have their memory cleared, they hold pointers to the non-mutable instances of module.
-            auto * copy = modules.back().get();
-            auto * derivedCopy = dynamic_cast<ConjunctModule *>(copy);
-            if (derivedCopy != nullptr) {
-                derivedCopy->inputConnections.clear();
+        std::map<std::string, Module *> nameToPointer;
+        for (auto& print : moduleBlueprint) {
+            std::unique_ptr<Module> p;
+            switch(print.t) {
+                case ModuleType::OUTPUT:
+                    p = std::make_unique<OutputModule>(print.name);
+                    break;
+                case ModuleType::TRANSMIT:
+                    p = std::make_unique<TransmitModule>(print.name);
+                    break;
+                case ModuleType::FLIP:
+                    p = std::make_unique<FlipModule>(print.name);
+                    break;
+                case ModuleType::CONJUNCT:
+                    p = std::make_unique<ConjunctModule>(print.name);
+                    break;
+                default: throw std::logic_error("Unknown blueprint type");
             }
-        }
-        // need to update the outputConnections vector also, or we are pointing to const Modules in the blueprint! very dangerous.
-        for (auto& ptr : modules) {
-            for (auto& oldTarget : ptr->outputConnections) {
-                const std::string& name = oldTarget->name;
-                auto iter = std::find_if(modules.begin(), modules.end(), [&name](auto& newP) {
-                    return newP->name == name;
-                });
-                if (iter == modules.end()) throw std::logic_error("Could not find " + name + " In mutable copy?");
 
-                oldTarget = iter->get(); // this is a manual instance of addConnection(), rather, it is a swap.
-                // oldTarget is now updated. Notify it that it was connected to ptr.
-                oldTarget->connectedTo(ptr.get());
+            modules.push_back(std::move(p));
+            nameToPointer[print.name] = modules.back().get();
+        }
+
+        // the objects were created, but the connections have not been established yet.
+        for (auto& print : moduleBlueprint) {
+            auto * src = nameToPointer[print.name];
+            for (auto& con : print.outputConnections) {
+                auto * trg = nameToPointer[con];
+                src->addConnection(trg);
+                trg->connectedTo(src);
             }
         }
     }
