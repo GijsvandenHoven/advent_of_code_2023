@@ -238,17 +238,41 @@ public:
     }
 
     void v2() const override {
+
+        auto findTimeUntil = [this](const std::string& s, Signal u){
+            std::vector<std::unique_ptr<Module>> mutableCopy;
+            createMutableCopy(mutableCopy);
+
+            Module * target = findByName(mutableCopy, s);
+
+            auto stopCondition = [target, u](Module * t, Module * f, Signal s){
+                return t == target && s == u;
+            };
+
+            return countCyclesUntilCondition(findByName(mutableCopy, BROADCASTER_NAME), stopCondition);
+        };
+
+        auto tell = [&findTimeUntil](const std::string& s, Signal u = Signal::LOW){
+            std::cout << s << ": " << findTimeUntil(s, u) << "\n";
+        };
+
+        std::vector<std::unique_ptr<Module>> mutableCopy;
+        createMutableCopy(mutableCopy);
+        generateTableOfState(findByName(mutableCopy, BROADCASTER_NAME), findByName(mutableCopy, "sb"));
+
+//        tell("zj"); // 2
+//        tell("zq"); // 2
+//        tell("cf"); // 4
+//
+//        tell("fs"); // 64
+//        tell("gr"); // 8
+//        tell("ff"); // 128
+//        tell("hf"); // 3877
+//        tell("ln"); // 16
+//        tell("zj"); // 2
+//        tell("pj"); // 1
+
         reportSolution(0);
-//        std::vector<std::unique_ptr<Module>> mutableCopy;
-//        createMutableCopy(mutableCopy);
-//
-//        Module * target = findByName(mutableCopy, "output");
-//
-//        auto stopCondition = [target](Module * t, Module * f, Signal s){
-//            return t == target && s == Signal::LOW;
-//        };
-//
-//        reportSolution(countCyclesUntilCondition(findByName(mutableCopy, BROADCASTER_NAME), stopCondition));
     }
 
     void parseBenchReset() override {
@@ -325,11 +349,10 @@ private:
         return std::make_pair(lo_count, hi_count);
     }
 
-    [[nodiscard]] static int countCyclesUntilCondition(
+    [[nodiscard]] static uint64_t countCyclesUntilCondition(
             Module * startingPoint,
             const std::function<bool(Module*, Module*, Signal)>& stopCondition
     ) {
-        int i = 0;
         bool work = true;
 
         auto callback = [&work, &stopCondition](Module* t,Module* f,Signal s) -> void {
@@ -339,11 +362,29 @@ private:
             }
         };
 
+        uint64_t i = 0;
         while (work) {
             i++;
             emulateSignalEnteringModule(startingPoint, Signal::LOW, callback);
         }
         return i;
+    }
+
+    [[noreturn]] static void generateTableOfState(Module * startingPoint, Module * whom) {
+        Signal lastKnownState = Signal::NONE;
+        int i = 0;
+
+        auto callback = [whom, &lastKnownState, &i](Module * t, Module * f, Signal s){
+            if (f == whom && s != lastKnownState) {
+                lastKnownState = s;
+                std::cout << i << "\t: " << s << "\n";
+            }
+        };
+
+        while (true) {
+            i++;
+            emulateSignalEnteringModule(startingPoint, Signal::LOW, callback);
+        }
     }
 
     /**
