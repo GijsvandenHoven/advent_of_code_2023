@@ -80,7 +80,10 @@ struct FlipModule : public Module {
     Signal incomingSignal(const Module * from, Signal s) override {
         if (s == Signal::LOW) {
             on = ! on;
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode" // I really, really think this is a bug. It 100% reaches this code and both branches lmao.
             return (on ? Signal::HIGH : Signal::LOW);
+#pragma clang diagnostic pop
         } // high signals are ignored.
 
         return Signal::NONE;
@@ -106,7 +109,7 @@ struct ConjunctModule : public Module {
         auto iter = inputConnections.find(from);
         // not taking any chances with inserting through operator[].
         if (iter == inputConnections.end()) {
-            throw std::logic_error("Conjunct Module received signal from a recipient not known in memory; It was not added with 'addConnection'?");
+            throw std::logic_error("Conjunct Module received signal from a recipient not known in memory; It was not added with 'addConnection'? - " + from->name);
         }
 
         iter->second = s; // update the memory.
@@ -237,42 +240,64 @@ public:
         reportSolution(lo * hi);
     }
 
+    // Very sneaky! Today's problem does not have a generalized "clever" solution!
+    // No memoization, no general formula for time-to-get-low on a ConjunctModule!
+    // It only works because the penultimate output is a Conjunct for a few binary counters.
+    // These counters emit a HI every few cycles, and then immediately go LO again.
+    // Thus, the answer is the LCM of these counters. And it only works due to the shape of the output.
+    // Otherwise, the problem is allegedly NP-hard (The circuits could form Circuit-SAT).
     void v2() const override {
 
-        auto findTimeUntil = [this](const std::string& s, Signal u){
-            std::vector<std::unique_ptr<Module>> mutableCopy;
-            createMutableCopy(mutableCopy);
+        // find the 'thing' that connects to the output node.
+        const Module * connectedToOut = nullptr;
+        for (auto& p : moduleBlueprint) {
+            auto iter = std::find_if(p->outputConnections.begin(), p->outputConnections.end(), [](auto * p){
+                return p->name == P2_OUTPUT_NAME;
+            });
+            if (iter != p->outputConnections.end()) {
+                if (connectedToOut != nullptr) {
+                    throw std::logic_error("Expected exactly one node connected to output target.");
+                } else {
+                    connectedToOut = p.get();
+                }
+            }
+        }
 
-            Module * target = findByName(mutableCopy, s);
+        const auto * lastConjunct = dynamic_cast<const ConjunctModule *>(connectedToOut); // dyn casting nullptr is safe, it gives nullptr just like an invalid module type would.
+        if (lastConjunct == nullptr) {
+            throw std::logic_error("Expected the output Module (if any) to be a ConjunctModule.");
+        }
 
-            auto stopCondition = [target, u](Module * t, Module * f, Signal s){
-                return t == target && s == u;
+        std::vector<std::string> connectedToConjunct;
+        for (auto& p : moduleBlueprint) {
+            auto iter = std::find(p->outputConnections.begin(), p->outputConnections.end(), lastConjunct);
+            if (iter != p->outputConnections.end()) {
+                connectedToConjunct.push_back(p->name);
+            }
+        }
+
+        // The stop condition is defined as the first time one of the connected-to-conjuncts outputs HIGH.
+        // Since it is ASSUMED THAT THESE ARE BINARY COUNTERS, I.E. PULSE HIGH AND INSTANTLY GO LOW AGAIN (!!)
+        // The #cycles for the output to go low, is equal to that for all conjuncts to be high,
+        // Which is equal to the LCM of the numbers found by this stop condition.
+        auto stopCondition = [](Module * m){
+            return [m](Module * to, Module * from, Signal s) -> bool {
+                return from == m && s == Signal::HIGH;
             };
-
-            return countCyclesUntilCondition(findByName(mutableCopy, BROADCASTER_NAME), stopCondition);
         };
 
-        auto tell = [&findTimeUntil](const std::string& s, Signal u = Signal::LOW){
-            std::cout << s << ": " << findTimeUntil(s, u) << "\n";
-        };
-
+        uint64_t lcm = 1;
         std::vector<std::unique_ptr<Module>> mutableCopy;
-        createMutableCopy(mutableCopy);
-        generateTableOfState(findByName(mutableCopy, BROADCASTER_NAME), findByName(mutableCopy, "sb"));
+        for (const auto& name : connectedToConjunct) {
+            createMutableCopy(mutableCopy); // resets the vector, this is necessary each time to start from cycle 0 as intended.
+            auto start = findByName(mutableCopy, BROADCASTER_NAME);
+            auto target = findByName(mutableCopy, name); // Re-do this each time. They would be invalid after the mutable copy is re-cloned!
 
-//        tell("zj"); // 2
-//        tell("zq"); // 2
-//        tell("cf"); // 4
-//
-//        tell("fs"); // 64
-//        tell("gr"); // 8
-//        tell("ff"); // 128
-//        tell("hf"); // 3877
-//        tell("ln"); // 16
-//        tell("zj"); // 2
-//        tell("pj"); // 1
+            uint64_t countUntilCycle = countCyclesUntilCondition(start, stopCondition(target));
+            lcm = std::lcm(lcm, countUntilCycle);
+        }
 
-        reportSolution(0);
+        reportSolution(lcm);
     }
 
     void parseBenchReset() override {
@@ -285,6 +310,7 @@ private:
     // And disallow interference of subsequent solvers.
     std::vector<std::unique_ptr<const Module>> moduleBlueprint;
     static constexpr std::string BROADCASTER_NAME = "broadcaster";
+    static constexpr std::string P2_OUTPUT_NAME = "rx";
 
     // very hairy code due to the use of pointers in member variables of Module.
     void createMutableCopy(std::vector<std::unique_ptr<Module>>& modules) const {
@@ -351,7 +377,8 @@ private:
 
     [[nodiscard]] static uint64_t countCyclesUntilCondition(
             Module * startingPoint,
-            const std::function<bool(Module*, Module*, Signal)>& stopCondition
+            const std::function<bool(Module*, Module*, Signal)>& stopCondition,
+            uint64_t errorAfterThisManyCycles = 1'000'000
     ) {
         bool work = true;
 
@@ -364,13 +391,14 @@ private:
 
         uint64_t i = 0;
         while (work) {
+            if (i > errorAfterThisManyCycles) throw std::logic_error("Could not satisfy the stop condition after " + std::to_string(errorAfterThisManyCycles) + " Cycles.");
             i++;
             emulateSignalEnteringModule(startingPoint, Signal::LOW, callback);
         }
         return i;
     }
 
-    [[noreturn]] static void generateTableOfState(Module * startingPoint, Module * whom) {
+    [[noreturn]] [[maybe_unused]] static void generateTableOfState(Module * startingPoint, Module * whom) {
         Signal lastKnownState = Signal::NONE;
         int i = 0;
 
