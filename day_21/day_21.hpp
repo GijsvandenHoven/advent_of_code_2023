@@ -13,8 +13,9 @@ struct Tile {
     bool occupied;
 };
 
+constexpr int UNVISITED_DIST = std::numeric_limits<int>::min();
 struct PathfindingTile : public Tile {
-    bool visited;
+    int dist = UNVISITED_DIST;
 };
 
 template <typename T>
@@ -27,6 +28,34 @@ public:
     int startY = -1;
 
     [[nodiscard]] T& at(int x, int y) { return this->operator[](y)[x]; }
+
+    [[nodiscard]] std::tuple<bool, int, int> up(int x, int y) {
+        int newY = y - 1;
+        if (newY < 0) return {false, 0, 0};
+
+        return {true, x, newY};
+    }
+
+    [[nodiscard]] std::tuple<bool, int, int> down(int x, int y) {
+        int newY = y + 1;
+        if (newY >= this->size()) return {false, 0, 0};
+
+        return {true, x, newY};
+    }
+
+    [[nodiscard]] std::tuple<bool, int, int> left(int x, int y) {
+        int newX = x - 1;
+        if (newX < 0) return {false, 0, 0};
+
+        return {true, newX, y};
+    }
+
+    [[nodiscard]] std::tuple<bool, int, int> right(int x, int y) {
+        int newX = x + 1;
+        if (this->size() == 0 || newX > this->back().size()) return {false, 0, 0};
+
+        return {true, newX, y};
+    }
 
     void addRow(const std::string& row) {
         std::istringstream s(row);
@@ -69,17 +98,16 @@ std::ostream& operator<<(std::ostream& os, const Tile& t) {
 }
 
 std::ostream& operator<<(std::ostream& os, const PathfindingTile& t) {
-    return t.occupied ? os << '#' : ( t.visited ? os << 'O' : os << '.');
+    return t.occupied ? os << " # " : ( t.dist == UNVISITED_DIST ? os << " . " : os << t.dist);
 }
 
 template <typename V>
 std::ostream& operator<<(std::ostream& os, const Garden<V>& g) {
-    auto [sx, sy] = g.getStart();
     int y = 0;
     for (auto& row : g) {
         int x = 0;
         for (auto& t : row) {
-            if (y == sy && x == sx) {
+            if (y == g.startY && x == g.startX) {
                 os << 'S';
             } else {
                 os << t;
@@ -111,8 +139,9 @@ public:
     void v1() const override {
         MutableGarden copy;
         grid.mutableCopy(copy);
-        int result = leapFrogDFS(copy, copy.startX, copy.startY, 2);
-        reportSolution(result);
+        BFS(copy);
+        std::cout << copy << "\n";
+        reportSolution(0);
     }
 
     void v2() const override {
@@ -128,38 +157,26 @@ private:
 
     static void BFS(MutableGarden& subject) {
 
-    }
+        std::queue<std::tuple<int,int,int>> bfs; // x,y,dist.
+        bfs.emplace(subject.startX, subject.startY, 0);
 
-    [[nodiscard]] static int leapFrogDFS(MutableGarden& subject, int x, int y, int length = 64) {
-        if (length % 2 != 0) throw std::logic_error("Can't be bothered to support this.");
+        while (! bfs.empty()) {
+            auto [x, y, d] = bfs.front();
+            bfs.pop();
 
-        subject.at(x, y).visited = true;
+            subject.at(x, y).dist = d;
 
-        if (length < 2) return 1; // cannot do any more leaps, but we did visit here.
+            std::array<std::tuple<bool,int,int>,4> next = { subject.up(x,y), subject.down(x,y), subject.left(x,y), subject.right(x,y) };
 
-        bool canGoUp = (! subject.at(x, y-1).occupied) && (! subject.at(x, y-2).occupied) && (! subject.at(x,y-2).visited);
-        bool canGoDo = (! subject.at(x, y+1).occupied) && (! subject.at(x, y+2).occupied) && (! subject.at(x,y+2).visited);
-        bool canGoLe = (! subject.at(x-1, y).occupied) && (! subject.at(x-2, y).occupied) && (! subject.at(x-2,y).visited);
-        bool canGoRi = (! subject.at(x+1, y).occupied) && (! subject.at(x+2, y).occupied) && (! subject.at(x+2,y).visited);
+            for (auto [ok, nx, ny] : next) {
+                if (! ok) continue;
 
-        std::cout << "up " << canGoUp << " do " << canGoDo << " le " << canGoLe << " ri " << canGoRi << "\n";
-
-        int total = 1; // we can visit ourselves from here.
-
-        if (canGoUp) { // and if we can go up we can visit these spots
-            total += leapFrogDFS(subject, x, y-2, length - 2);
+                auto& maybe = subject.at(nx, ny);
+                if (! maybe.occupied && maybe.dist == UNVISITED_DIST) {
+                    bfs.emplace(nx, ny, d+1);
+                }
+            }
         }
-        if (canGoDo) { // and these if we can go down.
-            total += leapFrogDFS(subject, x, y+2, length - 2);
-        }
-        if (canGoLe) {
-            total += leapFrogDFS(subject, x-2, y, length - 2);
-        }
-        if (canGoRi) {
-            total += leapFrogDFS(subject, x+2, y, length - 2);
-        }
-
-        return total;
     }
 };
 
