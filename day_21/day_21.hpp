@@ -193,8 +193,8 @@ public:
 
     void v2() const override {
 
-        constexpr int GRID_SIZE = 3;
-        constexpr int N_STEPS = 7;
+        constexpr int GRID_SIZE = 131;
+        constexpr int N_STEPS = 26501365;
 
         // grid size should be an odd number.
         static_assert(GRID_SIZE % 2 == 1);
@@ -247,10 +247,14 @@ public:
 
         std::cout << "CONSTEXPR = " << TOTAL << "\n";
 
-        MutableGarden reference;
-        MutableGarden::makeBlankGrid(2*N_STEPS+1, reference);
-        BFS(reference, N_STEPS, N_STEPS);
-        std::cout << "REF VALUE = " << reference.testReachability(N_STEPS) << "\n";
+        if constexpr (N_STEPS < 1000) {
+            MutableGarden reference;
+            MutableGarden::makeBlankGrid(2 * N_STEPS + 1, reference);
+            BFS(reference, N_STEPS, N_STEPS);
+            std::cout << "REF VALUE = " << reference.testReachability(N_STEPS) << "\n";
+        } else {
+            std::cout << "NO REF VALUE, TOO LARGE FOR BRUTE FORCE\n";
+        }
 
         MutableGarden full_grid;
         MutableGarden::makeBlankGrid(GRID_SIZE, full_grid);
@@ -310,29 +314,47 @@ public:
         int64_t full_grid_reach = grid_reach - 1; // the last grid is not full, it's a tippy. The 'central' grid is also not counted.
 
         // assumption: the tippy grids are odd-matching.
+        // thus the outer ring of full grids is even-matching, and of this there are more.
+        int64_t full_grid_reach_even_partition = full_grid_reach / 2 + 1;
+        int64_t full_grid_reach_odd_partition = full_grid_reach / 2;
 
+        // each subsequent ring has 4 more grids.
+        // Thus, since odd and even are alternating, each subsequent odd/even ring has 8 more grids (2x4)
+        int64_t full_grid_total_even = 4 * full_grid_reach_even_partition + 8 * PYRAMID_VOLUME(full_grid_reach_even_partition - 1);
+        int64_t full_grid_total_odd = 1 /*core*/ + 8 * PYRAMID_VOLUME(full_grid_reach_odd_partition);
 
+        std::cout << "fgte " << full_grid_total_even << ", fgto: " << full_grid_total_odd << "\n";
 
-//
-//        // todo: in the real thing make this a lambda func.
-//        auto leftTippyGrid = blueprint; // entering from the right middle
-//        BFS(leftTippyGrid, GRID_SIZE-1, GRID_SIZE/2);
-//        auto rightTippyGrid = blueprint; // entering from the left middle
-//        BFS(rightTippyGrid, 0, GRID_SIZE/2);
-//        auto topTippyGrid = blueprint; // entering from the bottom middle
-//        BFS(topTippyGrid, GRID_SIZE/2, GRID_SIZE-1);
-//        auto bottomTippyGrid = blueprint; // entering from the top middle
-//        BFS(bottomTippyGrid, GRID_SIZE/2, 0);
-//
-//        std::cout << "Tippy reachability:\n";
-//        int leftTippyReach = leftTippyGrid.testReachability(GRID_SIZE-1);
-//        int rightTippyReach = rightTippyGrid.testReachability(GRID_SIZE-1);
-//        int topTippyReach = topTippyGrid.testReachability(GRID_SIZE-1);
-//        int bottomTippyReach = bottomTippyGrid.testReachability(GRID_SIZE-1);
-//
-//        std::cout << "\t" << leftTippyReach << "\n\t" << rightTippyReach << "\n\t" << topTippyReach << "\n\t" << bottomTippyReach << "\n";
+        int64_t fullGridSum = full_grid_total_even * reachable_even + full_grid_total_odd * reachable_odd;
 
-        reportSolution(0);
+        std::cout << "fgs " << fullGridSum << "\n";
+
+        int64_t n_inner_corners_per_side = grid_reach; // every grid including tippy has one matched inner corner per side.
+        int64_t n_outer_corners_per_side = full_grid_reach; // every grid except tippy has one matched outer corner per side.
+
+        int64_t n_tiles_in_inner_TR = TRInnerReach * n_inner_corners_per_side;
+        int64_t n_tiles_in_outer_TR = TROuterReach * n_outer_corners_per_side;
+
+        int64_t n_tiles_in_inner_TL = TLInnerReach * n_inner_corners_per_side;
+        int64_t n_tiles_in_outer_TL = TLOuterReach * n_outer_corners_per_side;
+
+        int64_t n_tiles_in_inner_BL = BLInnerReach * n_inner_corners_per_side;
+        int64_t n_tiles_in_outer_BL = BLOuterReach * n_outer_corners_per_side;
+
+        int64_t n_tiles_in_inner_BR = BRInnerReach * n_inner_corners_per_side;
+        int64_t n_tiles_in_outer_BR = BROuterReach * n_outer_corners_per_side;
+
+        std::cout << "inners: BR " << n_tiles_in_inner_BR << ", BL " << n_tiles_in_inner_BL << ", TL " << n_tiles_in_inner_TL << ", TR " << n_tiles_in_inner_TR << "\n";
+        std::cout << "outers: BR " << n_tiles_in_outer_BR << ", BL " << n_tiles_in_outer_BL << ", TL " << n_tiles_in_outer_TL << ", TR " << n_tiles_in_outer_TR << "\n";
+
+        int64_t innerSum = n_tiles_in_inner_BR + n_tiles_in_inner_BL + n_tiles_in_inner_TR + n_tiles_in_inner_TL;
+        int64_t outerSum = n_tiles_in_outer_BR + n_tiles_in_outer_BL + n_tiles_in_outer_TR + n_tiles_in_outer_TL;
+
+        int64_t cornerSum = innerSum + outerSum;
+
+        std::cout << "Corner sum " << cornerSum << "\n";
+
+        reportSolution(cornerSum + tippyReachSum + fullGridSum);
     }
 
     void parseBenchReset() override {
