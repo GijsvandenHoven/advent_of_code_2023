@@ -82,10 +82,7 @@ struct FlipModule : public Module {
     Signal incomingSignal(const Module * from, Signal s) override {
         if (s == Signal::LOW) {
             on = ! on;
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "UnreachableCode" // I really, really think this is a bug. It 100% reaches this code and both branches lmao.
             return (on ? Signal::HIGH : Signal::LOW);
-#pragma clang diagnostic pop
         } // high signals are ignored.
 
         return Signal::NONE;
