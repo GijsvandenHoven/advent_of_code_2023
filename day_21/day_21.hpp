@@ -71,6 +71,8 @@ constexpr int64_t N_TIPPY_TILES = 4 * (N_ODD_PLACES_IN_EMPTY_GRID - 2 * SUM_N_DE
 
 constexpr int64_t TOTAL_IF_EMPTY_GRID = N_TILES_ON_INNER_CORNERS + N_TILES_ON_OUTER_CORNERS + N_PLACES_IN_FULL_GRIDS + N_TIPPY_TILES;
 
+// this entire formula for an empty grid should equal to the surface of the diamond we're making. Great sanity check.
+static_assert(TOTAL_IF_EMPTY_GRID == static_cast<int64_t>(N_STEPS + 1) * static_cast<int64_t>(N_STEPS + 1));
 
 struct Tile {
     bool occupied;
