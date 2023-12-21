@@ -5,7 +5,7 @@
 #include "../util/Day.hpp"
 #include "../util/macros.hpp"
 
-#define DAY 0
+#define DAY 22
 
 NAMESPACE_DEF(DAY) {
 
