@@ -36,11 +36,7 @@ public:
     virtual void parseBenchReset() = 0;
 
     template<typename T> void reportSolution(const T& s) const {
-        // We are mutating solution_printer, despite const-ness. This is to let the solution be conditionally printed.
-        // i.e. in solve() we want prints, in bench() we do not. solving functions themselves are const,
-        // So it's either this or assigning a global variable. I choose this.
-        auto * solution_printer_ptr = const_cast<PrinterCallback *>(& solution_printer);
-        *solution_printer_ptr = [s](const char * prefix) {
+        solution_printer = [s](const char * prefix) {
             std::cout << prefix << s << "\n";
         };
     }
@@ -121,7 +117,7 @@ public:
 private:
     std::ifstream text;
 
-    PrinterCallback solution_printer;
+    mutable PrinterCallback solution_printer;
 
     static std::filesystem::path root;
 };
