@@ -1,0 +1,152 @@
+need 26501365
+
+n+1 square div 1.5 is an estimate: 468.214.933.243.971 (too low)
+
+upper bound estimate: amount of spaces in empty grids (no diamond perimeter things)
+702.315.430.230.580  (too high)
+
+trying 634549784009844 -- YES
+
+the puzzle has straight, cardinal lines to each perimeter.
+Therefore any edge is reached in 65 steps
+and any corner is reached in 130.
+
+the grid is a square, sized [131, 131]
+
+Thus departing from any edge, there are 26.501.300 steps left.
+Divided by 131 is ROUND: 202300.
+
+This means there exist only a few classes the "big diamond" is composed of:
+
+full: The whole thing is reachable, there is enough steps. 
+tippy: one for each cardinal dir. BFS'd from the opposite edge with grid_size-1 steps.
+corner: two types:
+	inner: starting from the entrance corner, BFS'd with floor(grid_size/2)-1 steps.
+	outer: starting from entrance corner, BFS'd with floor(grid_size+grid_size/2)-1 steps.
+
+
+https://sxcu.net/6n6CbKAwg.png
+
+https://sxcu.net/6n6GXhpbZ.png
+
+this leaves us with a formula for tiles inside the diamond, as there is 2 types. (odd/even)
+1 the inner 'ring' (1 grid) is odd, because the step number is odd.
+2 the next 'ring' (4 grid) is even.
+3 the next 'ring' (8 grid) is odd. (We are assuming there are enough steps to cover it all)
+4 the next 'ring' (12 grid) is even. 
+5 the next 'ring' (16 grid) is odd.
+6 the next 'ring' (20 grid) is even.
+7 the next 'ring' (24 grid) is odd.	odd sum is 24+16+8 = 48 (+1)
+8 the next 'ring' (28 grid) is even.	even sum is 28+20+12+4 = 64
+9 the next 'ring' (32 grid) is odd.	odd sum is 32+48 = 80 (+1)
+
+https://sxcu.net/6n6JmAajf.png
+https://sxcu.net/6n6LHhGlb.png
+
+the formula for a ring n size is n-1 * 4 , with a base case of '1' for n=1.
+
+the formula for the # of rings is n/grid_size - 1, where n is n_steps-floor(grid_size/2)
+in our case, that is 202299 rings. Not counting the center as a ring.
+
+the perimeter is 'odd' matched. 
+	- we started on odd# of steps, and we travel an even amount of grids.
+
+Thus the outer ring is 'even' matched, just like the first ring (not the core).
+Therefore there are ceil(n_rings/2) even rings, and floor(n_rings/2) odd rings.
+	= 101150, 101149
+
+
+growth of odds: 1 + (8 16 24 32) -> (1 2 3 4) * 8.
+growth of evens: (4 12 20 28) -> 4*n + (0 1 2 3) * 8.
+
+this is pyramids.
+let pyramid_volume(n) = (n+1 * n) / 2
+
+number of odd grids: 1 + 8*pyramid_volume(n_odd_rings)
+number of even grids: 4*n_even_rings + 8*pyramid_volume(n_even_rings-1)
+
+e.g. with 4 rings of even grids, and 4 rings of odd grids (8 rings plus center)
+n_even_g = 4*4 + 8*(4*3 / 2) = 16 + 8*6 = 64.
+n_odd_g = 1 + 8*(5*4 / 2) = 81.
+
+total for 8 rings + 1 = 145
+
+
+knowing the number of odd and even grids, the number of accessible spaces is given by
+	n_accessible_space_on_even * n_even_g + n_accessible_space_on_odd * n_odd_g
+
+-> for a 7 step diamond, there are 0 odd full grid rings and 1 even full grid ring.
+-> thus, 1 & 4 odd and even grids respectively.
+-> n_accessible_xyz is given by floor(grid_size^2/2) and ceil(grid_size^2/2) respectively.
+-> 1 * (9/2v) + 4 * (9/2^) = 4 + 20 = 24 accessible spaces in the full grid space
+-> confirmed by manual count https://sxcu.net/6n7fBWX9Y.png
+
+Thus let n_full_grid_tiles = n_even_space * n_even_g + n_odd_space * n_odd_g.
+
+on the diagonal lines of the diamond, there are always more inner than outer corners,
+due to the presence of tippy.
+The amount of 'corner' type grids per side is (n_full_grids)*2 + 1
+This is because every full grid on the way out will have 2 corner grids (an inner and outer)
+and then + 1, an inner from the tippy associated with that side.
+
+n_inner = ceil((n_full_grids*2 + 1) / 2)
+n_outer = floor((n_full_grids*2 + 1) / 2)
+
+Thus, now everything could be filled in: 
+	n_even_g * reachable(1000000, BFS(grid)) <- sufficiently large n so all is reached if even
+	n_odd_g * reachable(1000001, BFS(grid)) <- reset grid, remember mutability!
+	
+	n_inner * reachable(floor(grid_size/2-1), BFSCorner(grid))
+	n_outer * reachable(floor(grid_size+grid_size/2 - 1), BFSCorner(grid))
+
+	// repeat n_inner and n_outer for each side.
+
+	tippyT
+	tippyB
+	tippyL
+	tippyR
+
+	-------+
+	= n_tiles_reachable.
+
+example for empty grid, size 3, 7 steps:
+	reachable on the grid is 4 for odd, 5 for even.
+		4 * 5 + 1 * 4 = 24.
+	1 for inner, 4 for outer (all odd, its alwayays odd if perimeter/tippy is odd)
+		4 * n_inner * 1 = 4 * 2 * 1 = 8.
+		4 * n_outer * 4 = 4 * 1 * 4 = 16.
+	tippy is 4 (happens to be the whole thing for odd & grid size 3)
+		4 *4 = 16
+	total:
+		16 + 16 + 8 + 24 = 64
+
+confirmed by count: https://sxcu.net/6n7Be62Hg.png
+	
+Lacking BFS, a formula for inner corners is (K+1)(K+1)/4, where K = grid_size/2.
+	-> odd grid sizes are assumed, for odd matching tiles.
+	-> 3 => 1
+	-> 5 => 2
+	-> 7 => 4
+	-> 9 => 6
+	-> 11 => 9
+	-> 13 => 12
+	-> 15 => 16
+	-> (CHATGPT DID THIS! I GOT STUCK HERE!)
+
+A formula for outer corners is given by n_odd - (k+1)(k+1)/4 where k = grid_size/2-1.
+	-> 3 => 4	<- 0 away from full
+	-> 5 -> 12	<- 1 away from full
+	-> 7 -> 22	<- 2 away from full
+	-> 9 -> 37	<- 4 away from full
+	-> 11 -> 54	<- 6 away from full
+	
+
+REAL_n_even_g = 4 * 101150 + 8 * (101150 * 101149 / 2)
+	= 4 * 101150 + 40'924'885'400
+	= 40'925'290'000
+REAL_n_odd_g = 1 + 8*(101150 * 101149 / 2)
+	= 1 + 40'924'885'400
+	= 40'924'885'401
+
+
+note on outer corners, checking with a larger grid https://sxcu.net/6n86MNSWk.png
