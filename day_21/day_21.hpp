@@ -86,10 +86,26 @@ public:
         for (auto& r : *this) {
             std::vector<PathfindingTile> copy;
             for (auto& t : r) {
-                copy.emplace_back(PathfindingTile(t, false));
+                copy.emplace_back(PathfindingTile(t));
             }
             g.addRow(std::move(copy));
         }
+    }
+
+    template <typename U = T>
+    [[nodiscard]] typename std::enable_if_t<std::is_same_v<U, PathfindingTile>, int> testReachability(int nSteps) const {
+        int count = 0;
+        int parity = nSteps % 2;
+        for (auto& row : *this) {
+            for (auto& t : row) {
+                int dist = t.dist;
+                int thisParity = dist % 2;
+                if (dist != UNVISITED_DIST && dist <= nSteps && (parity == thisParity)) {
+                    count += 1;
+                }
+            }
+        }
+        return count;
     }
 };
 
@@ -98,7 +114,7 @@ std::ostream& operator<<(std::ostream& os, const Tile& t) {
 }
 
 std::ostream& operator<<(std::ostream& os, const PathfindingTile& t) {
-    return t.occupied ? os << " # " : ( t.dist == UNVISITED_DIST ? os << " . " : os << t.dist);
+    return t.occupied ? os << "#" : ( t.dist == UNVISITED_DIST ? os << "." : os << t.dist);
 }
 
 template <typename V>
@@ -140,8 +156,10 @@ public:
         MutableGarden copy;
         grid.mutableCopy(copy);
         BFS(copy);
-        std::cout << copy << "\n";
-        reportSolution(0);
+
+        int reachable = copy.testReachability(64);
+
+        reportSolution(reachable);
     }
 
     void v2() const override {
