@@ -155,7 +155,7 @@ public:
     void v1() const override {
         MutableGarden copy;
         grid.mutableCopy(copy);
-        BFS(copy);
+        BFS(copy, grid.startX, grid.startY);
 
         int reachable = copy.testReachability(64);
 
@@ -173,16 +173,15 @@ public:
 private:
     BlueprintGarden grid;
 
-    static void BFS(MutableGarden& subject) {
+    static void BFS(MutableGarden& subject, int startX, int startY) {
 
         std::queue<std::tuple<int,int,int>> bfs; // x,y,dist.
-        bfs.emplace(subject.startX, subject.startY, 0);
+        bfs.emplace(startX, startY, 0);
+        subject.at(startX, startY).dist = 0;
 
         while (! bfs.empty()) {
             auto [x, y, d] = bfs.front();
             bfs.pop();
-
-            subject.at(x, y).dist = d;
 
             std::array<std::tuple<bool,int,int>,4> next = { subject.up(x,y), subject.down(x,y), subject.left(x,y), subject.right(x,y) };
 
@@ -192,6 +191,7 @@ private:
                 auto& maybe = subject.at(nx, ny);
                 if (! maybe.occupied && maybe.dist == UNVISITED_DIST) {
                     bfs.emplace(nx, ny, d+1);
+                    maybe.dist = d + 1;
                 }
             }
         }
