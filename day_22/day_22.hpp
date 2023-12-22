@@ -92,8 +92,8 @@ public:
     void v1() const override {
         auto [minX, minY, maxX, maxY] = dimensions;
 
-        int xDomain = (maxX - minX + 1);
-        int yDomain = (maxY - minY + 1);
+        int xDomain = (maxX + 1); // do not subtract from min, we are 0-based indexing vectors with this.
+        int yDomain = (maxY + 1);
         // For every x,y how high (z) the floor is.
         // Starts as all 0s (no cubes), as cubes fall, floorHeights for their locations change.
         std::vector<std::vector<int>> floorHeights;
@@ -101,26 +101,28 @@ public:
             floorHeights.emplace_back(xDomain, 0);
         }
 
-//        auto printHeightMap = [&floorHeights](){
-//            for (auto& row : floorHeights) {
-//                for (auto& i : row) {
-//                    std::cout << i;
-//                }
-//                std::cout << "\n";
-//            }
-//        };
+        std::cout << "My floor height map is " << floorHeights.size() << " by " << floorHeights.back().size() << "\n";
+
+        auto printHeightMap = [&floorHeights](){
+            for (auto& row : floorHeights) {
+                for (auto& i : row) {
+                    std::cout << i;
+                }
+                std::cout << "\n";
+            }
+        };
 
         // References for each x,y the topmost cube occupying that space.
         // Not the cubes at the highest slice, e.g. 0,0 could have a 10 tall cube and 1,1 has a 1 tall cube.
         // Use floorHeights for this.
         std::map<std::pair<int, int>, const Cube *> occupancy;
-        std::map<const Cube *, std::list<const Cube *>> connections;
+        std::map<const Cube *, std::set<const Cube *>> connections;
         for (auto& cube : cubes) { // put an empty list on each to get started.
-            connections.emplace(&cube, std::list<const Cube *>());
+            connections.emplace(&cube, std::set<const Cube *>());
         }
 
         for (auto& c : cubes) {
-            // std::cout << "Make fall: " << c << "\n";
+            std::cout << "Make fall: " << c << "\n";
 
             int cubeHeight = c.end.z - c.begin.z + 1;
             // This cubes height shall be the maximum of the xy surface it is above.
@@ -142,7 +144,7 @@ public:
                          auto iter = occupancy.find({i,j});
                          if (iter != occupancy.end()) {
                              // std::cout << "\tcube shall rest on id " << iter->second->id << "\n";
-                             connections[iter->second].emplace_back(&c);
+                             connections[iter->second].emplace(&c);
                          }
                     }
 
@@ -151,26 +153,26 @@ public:
                 }
             }
 
-//            std::cout << "After fall this is the height map\n";
-//            printHeightMap();
+            std::cout << "After fall this is the height map\n";
+            printHeightMap();
         }
 
         // bucket connection counts to speed up the next part.
         std::vector<int> supportCount(cubes.size(), 0);
 
-        // std::cout << "CONNECTIONS MAP\n";
+        std::cout << "CONNECTIONS MAP\n";
         for (auto& [ptr, list] : connections) {
-            // std::cout << "\t" << ptr->id << " Supports:\n";
+            std::cout << "\t" << ptr->id << " Supports:\n";
             for (auto p : list) {
-                // std::cout << "\t\t" << p->id << "\n";
+                 std::cout << "\t\t" << p->id << "\n";
                 supportCount[p->id]++;
             }
         }
 
-//        std::cout << "SUPPORT COUNT\n";
-//        for (int i = 0; i < supportCount.size(); ++i) {
-//            std::cout << "\tcube " << i << " is supported " << supportCount[i] << " times.\n";
-//        }
+        std::cout << "SUPPORT COUNT\n";
+        for (int i = 0; i < supportCount.size(); ++i) {
+            std::cout << "\tcube " << i << " is supported " << supportCount[i] << " times.\n";
+        }
 
         // A cube 'c' can be safely removed if:
         //      For every connected cube 'd', there exists a cube 'e', 'c' != 'e', such that 'd' is connected to 'e'.
