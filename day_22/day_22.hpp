@@ -33,11 +33,6 @@ struct Cube {
     }
 };
 
-struct Tree {
-    const Cube * node;
-    std::list<const Cube *> connections;
-};
-
 std::istream& operator>>(std::istream& s, Point& p) {
     s >> p.x; s.ignore(1);
     s >> p.y; s.ignore(1);
@@ -103,7 +98,7 @@ public:
         // Starts as all 0s (no cubes), as cubes fall, floorHeights for their locations change.
         std::vector<std::vector<int>> floorHeights;
         for (int y = 0; y < yDomain; ++y) {
-            floorHeights.emplace_back(xDomain);
+            floorHeights.emplace_back(xDomain, 0);
         }
 
         auto printHeightMap = [&floorHeights](){
@@ -119,6 +114,10 @@ public:
         // Not the cubes at the highest slice, e.g. 0,0 could have a 10 tall cube and 1,1 has a 1 tall cube.
         // Use floorHeights for this.
         std::map<std::pair<int, int>, const Cube *> occupancy;
+        std::map<const Cube *, std::list<const Cube *>> connections;
+        for (auto& cube : cubes) { // put an empty list on each to get started.
+            connections.emplace(&cube, std::list<const Cube *>());
+        }
 
         for (auto& c : cubes) {
             std::cout << "Make fall: " << c << "\n";
@@ -142,7 +141,8 @@ public:
                          // we are going to rest upon whatever cube is here.
                          auto iter = occupancy.find({i,j});
                          if (iter != occupancy.end()) {
-                             std::cout << "\tcube shall rest on id " << iter->second->id << "\n";
+                             // std::cout << "\tcube shall rest on id " << iter->second->id << "\n";
+                             connections[iter->second].emplace_back(&c);
                          }
                     }
 
@@ -155,7 +155,43 @@ public:
             printHeightMap();
         }
 
-        reportSolution(0);
+        // bucket connection counts to speed up the next part.
+        std::vector<int> supportCount(cubes.size(), 0);
+
+        std::cout << "CONNECTIONS MAP\n";
+        for (auto& [ptr, list] : connections) {
+            std::cout << "\t" << ptr->id << " Supports:\n";
+            for (auto p : list) {
+                std::cout << "\t\t" << p->id << "\n";
+                supportCount[p->id]++;
+            }
+        }
+
+        std::cout << "SUPPORT COUNT\n";
+        for (int i = 0; i < supportCount.size(); ++i) {
+            std::cout << "\tcube " << i << " is supported " << supportCount[i] << " times.\n";
+        }
+
+        // A cube 'c' can be safely removed if:
+        //      For every connected cube 'd', there exists a cube 'e', 'c' != 'e', such that 'd' is connected to 'e'.
+        //      This is given by the supportCount bucket, if it is greater than 1, then we know that 'e' exists (But not who 'e' is)
+        int count = 0;
+        for (auto& [ptr, list] : connections) {
+            bool safe = true;
+            for (auto p : list) {
+                if (supportCount[p->id] < 2) {
+                    safe = false;
+                    break;
+                }
+            }
+
+            if (safe) {
+                std::cout << "cube " << ptr->id << " is safe\n";
+                ++count;
+            }
+        }
+
+        reportSolution(count);
     }
 
     void v2() const override {
