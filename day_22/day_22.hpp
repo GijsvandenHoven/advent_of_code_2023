@@ -141,21 +141,6 @@ public:
             }
         }
 
-        std::cout << "CONNECTION MAP:\n";
-        for (auto& [n, l] : cons) {
-            std::cout << "\t" << n->id << " supports:\n";
-            for (auto& cc : l) {
-                std::cout << "\t\t" << cc->id << "\n";
-            }
-        }
-        std::cout << "INVERSE CONNECTION MAP:\n";
-        for (auto& [n, l] : inverseConnections) {
-            std::cout << "\t" << n->id << " supported by:\n";
-            for (auto& cc : l) {
-                std::cout << "\t\t" << cc->id << "\n";
-            }
-        }
-
         // Let's turn that O(log(n)) into O(1) by using cube IDs.
         auto makeLookupTable = [](auto& table, auto& connectionMap){
             table.clear();
@@ -182,7 +167,6 @@ public:
 
         int64_t fallSum = 0;
         for (auto& [cube, connections] : cons) {
-            std::cout << "Considering removal of " << cube->id << " ...\n";
             std::set<const Cube *> unstable;
             unstable.emplace(cube);
 
@@ -194,9 +178,7 @@ public:
                 work.pop();
 
                 for (auto& destabilizing : *connectionLookup[handle->id]) {
-                    std::cout << "\t" << destabilizing->id << " might become unstable?\n";
                     if (unstable.contains(destabilizing)) {
-                        std::cout << "\t" << destabilizing->id << " is already unstable.\n";
                         continue;
                     }
 
@@ -205,16 +187,13 @@ public:
                     // but it's from a connection lookup already so those types of cubes will never be considered.
                     bool willBecomeUnstable = true;
                     for (auto& relyingOn : *inverseConnectionLookup[destabilizing->id]) {
-                        std::cout << "\t\t" << destabilizing->id << " relies on " << relyingOn->id << " for stability.\n";
                         if (! unstable.contains(relyingOn)) {
-                            std::cout << "\t\t\t" << relyingOn->id << " is still stable.\n";
                             willBecomeUnstable = false;
                             break;
                         }
                     }
 
                     if (willBecomeUnstable) {
-                        std::cout << "\t" << destabilizing->id << " is becoming unstable.\n";
                         unstable.emplace(destabilizing);
                         work.emplace(destabilizing);
                     }
@@ -223,8 +202,6 @@ public:
 
             int unstables = static_cast<int>(unstable.size() - 1);
             fallSum += unstables;
-
-            std::cout << "RESULT: " << unstable.size() - 1 << " UNSTABLE ITEMS\n";
         }
 
         reportSolution(fallSum);
