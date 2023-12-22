@@ -90,6 +90,155 @@ public:
     }
 
     void v1() const override {
+        std::map<const Cube *, std::set<const Cube *>> cons;
+        makeFallenBrickConnections(cons);
+
+        // bucket connection counts to speed up the next part.
+        std::vector<int> supportCount(cubes.size(), 0);
+
+        for (auto& [ptr, list] : cons) {
+            for (auto p : list) {
+                supportCount[p->id]++;
+            }
+        }
+        // A cube 'c' can be safely removed if:
+        //      For every connected cube 'd', there exists a cube 'e', 'c' != 'e', such that 'd' is connected to 'e'.
+        //      This is given by the supportCount bucket, if it is greater than 1, then we know that 'e' exists (But not who 'e' is)
+        int count = 0;
+        for (auto& [ptr, list] : cons) {
+            bool safe = true;
+            for (auto p : list) {
+                if (supportCount[p->id] < 2) {
+                    safe = false;
+                    break;
+                }
+            }
+
+            if (safe) {
+                ++count;
+            }
+        }
+
+        reportSolution(count);
+    }
+
+    void v2() const override {
+        std::map<const Cube *, std::set<const Cube *>> cons;
+        makeFallenBrickConnections(cons);
+
+        // Where cons is "cube x supports this set of cubes",
+        // This is "cube x is supported by this set of cubes".
+        std::map<const Cube *, std::set<const Cube*>> inverseConnections;
+        for (auto& [supporter, supported] : cons) {
+            // by definition of emplace, only inserted if nothing exists here yet.
+            // This is done to not have unsupported (= on the floor) cubes not present in inverse.
+            // Although not having them doesn't have to matter because operator[] would insert an empty set for us.
+            // So it is mostly about maintaining invariants.
+            inverseConnections.emplace(supporter, std::set<const Cube *>());
+
+            for (auto& c : supported) {
+                inverseConnections[c].emplace(supporter);
+            }
+        }
+
+        std::cout << "CONNECTION MAP:\n";
+        for (auto& [n, l] : cons) {
+            std::cout << "\t" << n->id << " supports:\n";
+            for (auto& cc : l) {
+                std::cout << "\t\t" << cc->id << "\n";
+            }
+        }
+        std::cout << "INVERSE CONNECTION MAP:\n";
+        for (auto& [n, l] : inverseConnections) {
+            std::cout << "\t" << n->id << " supported by:\n";
+            for (auto& cc : l) {
+                std::cout << "\t\t" << cc->id << "\n";
+            }
+        }
+
+        // Let's turn that O(log(n)) into O(1) by using cube IDs.
+        auto makeLookupTable = [](auto& table, auto& connectionMap){
+            table.clear();
+            table.resize(connectionMap.size(), nullptr);
+            for (auto& [cube, connections] : connectionMap) {
+                if (cube->id < 0 || cube->id >= connectionMap.size()) {
+                    throw std::logic_error("Indices should be contiguous from 0 to map size.");
+                }
+
+                // because there are no duplicate keys by defintion of map, and we throw exceptions for all but [size] IDs,
+                // This vector should be exactly filled on every value at the end of the loop. (no double writes or 0 writes for any index)
+                table[cube->id] = &connections;
+            }
+            if (table.end() != std::find(table.begin(), table.end(), nullptr)) {
+                throw std::logic_error("This should be impossible.");
+            }
+        };
+
+        // make a lookup table for both connections and inverse connections.
+        std::vector<std::set<const Cube*> *> connectionLookup;
+        std::vector<std::set<const Cube*> *> inverseConnectionLookup;
+        makeLookupTable(connectionLookup, cons);
+        makeLookupTable(inverseConnectionLookup, inverseConnections);
+
+        int64_t fallSum = 0;
+        for (auto& [cube, connections] : cons) {
+            std::cout << "Considering removal of " << cube->id << " ...\n";
+            std::set<const Cube *> unstable;
+            unstable.emplace(cube);
+
+            std::queue<const Cube *> work;
+            work.emplace(cube);
+
+            while (! work.empty()) {
+                auto * handle = work.front();
+                work.pop();
+
+                for (auto& destabilizing : *connectionLookup[handle->id]) {
+                    std::cout << "\t" << destabilizing->id << " might become unstable?\n";
+                    if (unstable.contains(destabilizing)) {
+                        std::cout << "\t" << destabilizing->id << " is already unstable.\n";
+                        continue;
+                    }
+
+                    // This cube becomes unstable, if none of its supporting nodes are stable.
+                    // this bool default true would be wonky if a 0-supported cube (floor cube) is here,
+                    // but it's from a connection lookup already so those types of cubes will never be considered.
+                    bool willBecomeUnstable = true;
+                    for (auto& relyingOn : *inverseConnectionLookup[destabilizing->id]) {
+                        std::cout << "\t\t" << destabilizing->id << " relies on " << relyingOn->id << " for stability.\n";
+                        if (! unstable.contains(relyingOn)) {
+                            std::cout << "\t\t\t" << relyingOn->id << " is still stable.\n";
+                            willBecomeUnstable = false;
+                            break;
+                        }
+                    }
+
+                    if (willBecomeUnstable) {
+                        std::cout << "\t" << destabilizing->id << " is becoming unstable.\n";
+                        unstable.emplace(destabilizing);
+                        work.emplace(destabilizing);
+                    }
+                }
+            }
+
+            int unstables = static_cast<int>(unstable.size() - 1);
+            fallSum += unstables;
+
+            std::cout << "RESULT: " << unstable.size() - 1 << " UNSTABLE ITEMS\n";
+        }
+
+        reportSolution(fallSum);
+    }
+
+    void parseBenchReset() override {
+        cubes.clear();
+    }
+
+private:
+    std::vector<Cube> cubes;
+    std::tuple<int,int,int,int> dimensions; // domain of the cubes in X,Y space, from "top left" to "bottom" coordinate pair.
+
+    void makeFallenBrickConnections(std::map<const Cube *, std::set<const Cube *>>& connections) const {
         auto [minX, minY, maxX, maxY] = dimensions;
 
         int xDomain = (maxX + 1); // do not subtract from min, we are 0-based indexing vectors with this.
@@ -101,28 +250,15 @@ public:
             floorHeights.emplace_back(xDomain, 0);
         }
 
-        std::cout << "My floor height map is " << floorHeights.size() << " by " << floorHeights.back().size() << "\n";
-
-        auto printHeightMap = [&floorHeights](){
-            for (auto& row : floorHeights) {
-                for (auto& i : row) {
-                    std::cout << i;
-                }
-                std::cout << "\n";
-            }
-        };
-
         // References for each x,y the topmost cube occupying that space.
         // Not the cubes at the highest slice, e.g. 0,0 could have a 10 tall cube and 1,1 has a 1 tall cube.
         // Use floorHeights for this.
         std::map<std::pair<int, int>, const Cube *> occupancy;
-        std::map<const Cube *, std::set<const Cube *>> connections;
         for (auto& cube : cubes) { // put an empty list on each to get started.
             connections.emplace(&cube, std::set<const Cube *>());
         }
 
         for (auto& c : cubes) {
-            std::cout << "Make fall: " << c << "\n";
 
             int cubeHeight = c.end.z - c.begin.z + 1;
             // This cubes height shall be the maximum of the xy surface it is above.
@@ -140,73 +276,19 @@ public:
                 for (int i = c.begin.x; i <= c.end.x; ++i) {
                     // test touch detection.
                     if (floorHeights[j][i] == maxHeight) {
-                         // we are going to rest upon whatever cube is here.
-                         auto iter = occupancy.find({i,j});
-                         if (iter != occupancy.end()) {
-                             // std::cout << "\tcube shall rest on id " << iter->second->id << "\n";
-                             connections[iter->second].emplace(&c);
-                         }
+                        // we are going to rest upon whatever cube is here.
+                        auto iter = occupancy.find({i,j});
+                        if (iter != occupancy.end()) {
+                            connections[iter->second].emplace(&c); // updates the connections (!)
+                        }
                     }
 
                     floorHeights[j][i] = maxHeight + cubeHeight; // this floor tile is cubeHeight higher now.
                     occupancy.insert_or_assign(std::make_pair(i, j), &c); // and at this coord the top cube shall be this.
                 }
             }
-
-            std::cout << "After fall this is the height map\n";
-            printHeightMap();
         }
-
-        // bucket connection counts to speed up the next part.
-        std::vector<int> supportCount(cubes.size(), 0);
-
-        std::cout << "CONNECTIONS MAP\n";
-        for (auto& [ptr, list] : connections) {
-            std::cout << "\t" << ptr->id << " Supports:\n";
-            for (auto p : list) {
-                 std::cout << "\t\t" << p->id << "\n";
-                supportCount[p->id]++;
-            }
-        }
-
-        std::cout << "SUPPORT COUNT\n";
-        for (int i = 0; i < supportCount.size(); ++i) {
-            std::cout << "\tcube " << i << " is supported " << supportCount[i] << " times.\n";
-        }
-
-        // A cube 'c' can be safely removed if:
-        //      For every connected cube 'd', there exists a cube 'e', 'c' != 'e', such that 'd' is connected to 'e'.
-        //      This is given by the supportCount bucket, if it is greater than 1, then we know that 'e' exists (But not who 'e' is)
-        int count = 0;
-        for (auto& [ptr, list] : connections) {
-            bool safe = true;
-            for (auto p : list) {
-                if (supportCount[p->id] < 2) {
-                    safe = false;
-                    break;
-                }
-            }
-
-            if (safe) {
-                std::cout << "cube " << ptr->id << " is safe\n";
-                ++count;
-            }
-        }
-
-        reportSolution(count);
     }
-
-    void v2() const override {
-        reportSolution(0);
-    }
-
-    void parseBenchReset() override {
-        cubes.clear();
-    }
-
-private:
-    std::vector<Cube> cubes;
-    std::tuple<int,int,int,int> dimensions; // domain of the cubes in X,Y space, from "top left" to "bottom" coordinate pair.
 };
 
 } // namespace
