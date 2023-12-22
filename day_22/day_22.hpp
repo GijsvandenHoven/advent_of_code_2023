@@ -141,7 +141,7 @@ public:
             }
         }
 
-        // Let's turn that O(log(n)) into O(1) by using cube IDs.
+        // Let's turn that O(log(n)) access into O(1) by using the cube IDs.
         auto makeLookupTable = [](auto& table, auto& connectionMap){
             table.clear();
             table.resize(connectionMap.size(), nullptr);
@@ -165,20 +165,21 @@ public:
         makeLookupTable(connectionLookup, cons);
         makeLookupTable(inverseConnectionLookup, inverseConnections);
 
+        // O(N^2 (K^2 logN)) where K is single digits for the puzzle input -> O(N^2 logN)
         int64_t fallSum = 0;
-        for (auto& [cube, connections] : cons) {
+        for (auto& [cube, connections] : cons) { // O(N) w.r.t. input.
             std::set<const Cube *> unstable;
             unstable.emplace(cube);
 
             std::queue<const Cube *> work;
             work.emplace(cube);
 
-            while (! work.empty()) {
+            while (! work.empty()) { // O(N) w.r.t. input.
                 auto * handle = work.front();
                 work.pop();
 
-                for (auto& destabilizing : *connectionLookup[handle->id]) {
-                    if (unstable.contains(destabilizing)) {
+                for (auto& destabilizing : *connectionLookup[handle->id]) { // O(K) w.r.t. connections (in the puzzle this is up to 5)
+                    if (unstable.contains(destabilizing)) { // O(logN) w.r.t. input.
                         continue;
                     }
 
@@ -186,8 +187,8 @@ public:
                     // this bool default true would be wonky if a 0-supported cube (floor cube) is here,
                     // but it's from a connection lookup already so those types of cubes will never be considered.
                     bool willBecomeUnstable = true;
-                    for (auto& relyingOn : *inverseConnectionLookup[destabilizing->id]) {
-                        if (! unstable.contains(relyingOn)) {
+                    for (auto& relyingOn : *inverseConnectionLookup[destabilizing->id]) { // O(K) w.r.t. inverse connections. (up to 4)
+                        if (! unstable.contains(relyingOn)) { // O(logN) w.r.t. input.
                             willBecomeUnstable = false;
                             break;
                         }
