@@ -33,6 +33,11 @@ struct Cube {
     }
 };
 
+struct Tree {
+    const Cube * node;
+    std::list<const Cube *> connections;
+};
+
 std::istream& operator>>(std::istream& s, Point& p) {
     s >> p.x; s.ignore(1);
     s >> p.y; s.ignore(1);
@@ -121,8 +126,8 @@ public:
             int cubeHeight = c.end.z - c.begin.z + 1;
             // This cubes height shall be the maximum of the xy surface it is above.
             int maxHeight = std::numeric_limits<int>::min();
-            for (int i = c.begin.x; i <= c.end.x; ++i) {
-                for (int j = c.begin.y; j <= c.end.y; ++j) {
+            for (int j = c.begin.y; j <= c.end.y; ++j) {
+                for (int i = c.begin.x; i <= c.end.x; ++i) {
                     auto& heightHere = floorHeights[j][i];
                     if (heightHere > maxHeight) {
                         maxHeight = heightHere;
@@ -130,10 +135,19 @@ public:
                 }
             }
 
-            for (int i = c.begin.x; i <= c.end.x; ++i) {
-                for (int j = c.begin.y; j <= c.end.y; ++j) {
+            for (int j = c.begin.y; j <= c.end.y; ++j) {
+                for (int i = c.begin.x; i <= c.end.x; ++i) {
+                    // test touch detection.
+                    if (floorHeights[j][i] == maxHeight) {
+                         // we are going to rest upon whatever cube is here.
+                         auto iter = occupancy.find({i,j});
+                         if (iter != occupancy.end()) {
+                             std::cout << "\tcube shall rest on id " << iter->second->id << "\n";
+                         }
+                    }
+
                     floorHeights[j][i] = maxHeight + cubeHeight; // this floor tile is cubeHeight higher now.
-                    occupancy.emplace(std::make_pair(j, i), &c); // and at this coord the top cube shall be this.
+                    occupancy.insert_or_assign(std::make_pair(i, j), &c); // and at this coord the top cube shall be this.
                 }
             }
 
