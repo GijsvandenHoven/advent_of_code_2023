@@ -101,14 +101,14 @@ public:
             floorHeights.emplace_back(xDomain, 0);
         }
 
-        auto printHeightMap = [&floorHeights](){
-            for (auto& row : floorHeights) {
-                for (auto& i : row) {
-                    std::cout << i;
-                }
-                std::cout << "\n";
-            }
-        };
+//        auto printHeightMap = [&floorHeights](){
+//            for (auto& row : floorHeights) {
+//                for (auto& i : row) {
+//                    std::cout << i;
+//                }
+//                std::cout << "\n";
+//            }
+//        };
 
         // References for each x,y the topmost cube occupying that space.
         // Not the cubes at the highest slice, e.g. 0,0 could have a 10 tall cube and 1,1 has a 1 tall cube.
@@ -120,7 +120,7 @@ public:
         }
 
         for (auto& c : cubes) {
-            std::cout << "Make fall: " << c << "\n";
+            // std::cout << "Make fall: " << c << "\n";
 
             int cubeHeight = c.end.z - c.begin.z + 1;
             // This cubes height shall be the maximum of the xy surface it is above.
@@ -151,26 +151,26 @@ public:
                 }
             }
 
-            std::cout << "After fall this is the height map\n";
-            printHeightMap();
+//            std::cout << "After fall this is the height map\n";
+//            printHeightMap();
         }
 
         // bucket connection counts to speed up the next part.
         std::vector<int> supportCount(cubes.size(), 0);
 
-        std::cout << "CONNECTIONS MAP\n";
+        // std::cout << "CONNECTIONS MAP\n";
         for (auto& [ptr, list] : connections) {
-            std::cout << "\t" << ptr->id << " Supports:\n";
+            // std::cout << "\t" << ptr->id << " Supports:\n";
             for (auto p : list) {
-                std::cout << "\t\t" << p->id << "\n";
+                // std::cout << "\t\t" << p->id << "\n";
                 supportCount[p->id]++;
             }
         }
 
-        std::cout << "SUPPORT COUNT\n";
-        for (int i = 0; i < supportCount.size(); ++i) {
-            std::cout << "\tcube " << i << " is supported " << supportCount[i] << " times.\n";
-        }
+//        std::cout << "SUPPORT COUNT\n";
+//        for (int i = 0; i < supportCount.size(); ++i) {
+//            std::cout << "\tcube " << i << " is supported " << supportCount[i] << " times.\n";
+//        }
 
         // A cube 'c' can be safely removed if:
         //      For every connected cube 'd', there exists a cube 'e', 'c' != 'e', such that 'd' is connected to 'e'.
