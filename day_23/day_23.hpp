@@ -10,7 +10,9 @@
 NAMESPACE_DEF(DAY) {
 
 struct Block {
-    int cost;
+    int startX = 0;
+    int startY = 0;
+    int cost = 0;
     std::list<Block> successors;
 };
 
@@ -24,6 +26,16 @@ enum class Direction : uint8_t {
 constexpr char END_MARKER = 'X';
 constexpr char WALL_MARKER = '#';
 constexpr char PATH_MARKER = '.';
+
+std::ostream& operator<<(std::ostream& os, const Block& b) {
+    os << "Block with coords (" << b.startX << ", " << b.startY << ") successors (" << b.successors.size() << "):\n";
+    for (auto& s : b.successors) {
+        std::cout << s << "\n";
+    }
+    os << "End block " << b.startX << ", " << b.startY << " successor list.";
+
+    return os;
+}
 
 CLASS_DEF(DAY) {
 public:
@@ -50,6 +62,8 @@ public:
         Block startBlock {};
         calcBlock(startBlock, x, y, Direction::SOUTH);
 
+        std::cout << startBlock << "\n";
+
         reportSolution(0);
     }
 
@@ -71,10 +85,11 @@ private:
      * Recursively push onto the successor list calls to this function.
      */
     void calcBlock(Block& target, int x, int y, Direction facing) const {
+        target.startX = x;
+        target.startY = y;
         int steps = 1; // including the current x, y.
         std::cout << "build block " << x << ", " << y << "\n";
         do {
-            std::cout << "\titer " << x << ", " << y << "\n";
             auto [nx, ny, nfacing] = successor(x, y, facing);
             x = nx;
             y = ny;
