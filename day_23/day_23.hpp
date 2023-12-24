@@ -103,8 +103,6 @@ private:
      * Recursively push onto the successor list calls to this function.
      */
     BlockCache::iterator calcBlock(int x, int y, Direction facing, BlockCache& cache) const {
-        std::cout << "build block " << x << ", " << y << "\n";
-
         auto block = std::make_shared<Block>(x, y);
         block->startX = x;
         block->startY = y;
@@ -125,12 +123,10 @@ private:
                 break;
             }
 
+            // Intersection square logic.
             if (grid[y][x] != PATH_MARKER) {
                 auto [interX, interY, _] = successor(x, y, facing); // we are now on the intersection
                 ++steps;
-
-                std::cout << "This block is " << steps << " long\n";
-                std::cout << "Intersection square at " << interX << ", " << interY << "\n";
                 target.cost = steps;
                 std::array<std::pair<int,int>,4> possible{{ {interX,interY-1}, {interX,interY+1}, {interX-1,interY}, {interX+1,interY} }};
                 for (auto& [px, py] : possible) {
@@ -155,7 +151,6 @@ private:
                         return c->startX == _x && c->startY == _y;
                     });
                     if (blockToMakeIter != cache.end()) {
-                        std::cout << "CACHE HIT ON " << px << ", " << py << "\n";
                         target.successors.emplace_back(*blockToMakeIter);
                     } else {
                         auto iteratorToNewBlock = calcBlock(px, py, possibleFacing, cache);
@@ -166,8 +161,6 @@ private:
                 break; // we are done with this block now. We found the intersection square, appended blocks. No more walking fwd to do.
             }
         } while (grid[y][x] != END_MARKER);
-
-        std::cout << "recursion end " << x << ", " << y << "\n";
 
         // According to documentation, no iterators are invalidated by calls to emplace of std::set so this should be fine.
         return iter;
