@@ -66,13 +66,13 @@ public:
     void v1() const override {
         auto [x, y] = start;
 
-        // build blocks
+        // reduce the graph by collapsing the labyrinth sections into "blocks" with appropriate length.
         BlockCache cache;
         auto iterToStart = calcBlock(x, y, Direction::SOUTH, cache);
 
-        std::cout << **iterToStart << "\n";
+        int longest = calcLongestPath(**iterToStart);
 
-        reportSolution(0);
+        reportSolution(longest - 1); // off by one, the problem wants "steps" from start, but we calculated number of "dots".
     }
 
     void v2() const override {
@@ -86,6 +86,16 @@ public:
 private:
     std::vector<std::string> grid;
     std::pair<int,int> start;
+
+    // NP-hard :) that's why we collapsed to blocks.
+    int calcLongestPath(const Block& first) const {
+        int max = 0;
+        for (auto& s : first.successors) {
+            max = std::max(max, calcLongestPath(*s));
+        }
+
+        return first.cost + max;
+    }
 
     /**
      * Walk to the successor incrementing a count until...
