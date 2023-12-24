@@ -82,7 +82,7 @@ public:
         BlockCache cache;
         std::shared_ptr<Block> finalBlock(nullptr);
         auto iterToStart = calcBlock(x, y + 1, Direction::SOUTH, cache, finalBlock);
-        
+
         // Extend connections to go backwards
         makeBidirectional(*iterToStart);
         std::vector<const Block *> visited;
@@ -90,13 +90,12 @@ public:
         if (! endReached) {
             throw std::logic_error("End could not be reached from start??");
         }
-        std::cout << solution << "\n";
 
-        reportSolution(0);
+        reportSolution(solution);
     }
 
     void parseBenchReset() override {
-
+        grid.clear();
     }
 
 private:
