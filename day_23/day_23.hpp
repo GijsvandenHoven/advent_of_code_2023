@@ -68,13 +68,30 @@ public:
 
         // reduce the graph by collapsing the labyrinth sections into "blocks" with appropriate length.
         BlockCache cache;
-        auto iterToStart = neoCalcBlock(x, y + 1, Direction::SOUTH, cache);
+        std::shared_ptr<Block> dontCare(nullptr);
+        auto iterToStart = calcBlock(x, y + 1, Direction::SOUTH, cache, dontCare);
         int longest = calcLongestPath(**iterToStart);
 
         reportSolution(longest);
     }
 
     void v2() const override {
+        auto [x, y] = start;
+
+        // reduce the graph by collapsing the labyrinth sections into "blocks" with appropriate length.
+        BlockCache cache;
+        std::shared_ptr<Block> finalBlock(nullptr);
+        auto iterToStart = calcBlock(x, y + 1, Direction::SOUTH, cache, finalBlock);
+
+        // Extend connections to go backwards
+        makeBidirectional(*iterToStart);
+        std::vector<const Block *> visited;
+        auto [endReached, solution] = calcLongestPathWithCircularDependencies(**iterToStart, *finalBlock, visited);
+        if (! endReached) {
+            throw std::logic_error("End could not be reached from start??");
+        }
+        std::cout << solution << "\n";
+
         reportSolution(0);
     }
 
@@ -86,8 +103,49 @@ private:
     std::vector<std::string> grid;
     std::pair<int,int> start;
 
+    static std::pair<bool, int> calcLongestPathWithCircularDependencies(const Block& here, const Block& end, std::vector<const Block*>& visited) {
+//        std::cout << "1st has these cons: " << first.successors.size() << "\n";
+//        for (auto& s : first.successors) {
+//            std::cout << "\t" << s->startX << ", " << s->startY << " with further sucs \n";
+//            for (auto& ss : s->successors) {
+//                std::cout << "\t\t" << ss->startX << ", " << ss->startY << " with further further sucs \n";
+//                for (auto& sss : ss->successors) {
+//                    std::cout << "\t\t\t" << sss->startX << ", " << sss->startY << ".\n";
+//                }
+//            }
+//        }
+
+        // exhaustively depth-first search to find the max size path.
+        std::cout << "Recursively considering " << here.startX << ", " << here.startY << "\n";
+
+        if (&here != &end) {
+            visited.push_back(&here);
+
+            bool endIsInThisPath = false;
+            int maxOfChoice = 0;
+            for (auto& s : here.successors) {
+                auto iterToVisitVec = std::find(visited.begin(), visited.end(), s.get());
+                if (iterToVisitVec != visited.end()) {
+                    continue; // We have already been here on this path, so we cannot use it again.
+                }
+
+                auto [endReaching, maxWithThisChoice] = calcLongestPathWithCircularDependencies(*s, end, visited);
+
+                if (endReaching) {
+                    endIsInThisPath = true;
+                    maxOfChoice = std::max(maxOfChoice, maxWithThisChoice);
+                }
+            }
+
+            visited.pop_back();
+            return {endIsInThisPath, here.cost + maxOfChoice};
+        } else {
+            return {true, here.cost};
+        }
+    }
+
     // NP-hard :) that's why we collapsed to blocks.
-    int calcLongestPath(const Block& first) const {
+    static int calcLongestPath(const Block& first) {
         int max = 0;
         for (auto& s : first.successors) {
             max = std::max(max, calcLongestPath(*s));
@@ -96,13 +154,29 @@ private:
         return first.cost + max;
     }
 
+    static void makeBidirectional(const std::shared_ptr<Block>& b) {
+        for (auto& suc : b->successors) {
+            auto iter = std::find(suc->successors.begin(), suc->successors.end(), b);
+
+            if (iter == suc->successors.end()) {
+                suc->successors.emplace_back(b);
+
+                // picture a->b->c, first a->b->(c,a), then recursing on b,
+                // a->b->(c,a), for c -> b
+                // 0-size loop exit for c, then a will be considered again (it is now a successor of b)
+                // the std::find will find 'a' in its list already and not do anything.
+                makeBidirectional(suc);
+            }
+        }
+    }
+
     /**
      * Walk to the successor incrementing a count until...
      * ...a direction marker is reached, at which point,
      * Recursively push onto the successor list calls to this function.
      * Care is taken only "legal" directions are walked, i.e. not passing through one-ways.
      */
-    BlockCache::iterator neoCalcBlock(const int x, const int y, const Direction facing, BlockCache& cache) const {
+    BlockCache::iterator calcBlock(const int x, const int y, const Direction facing, BlockCache& cache, std::shared_ptr<Block>& endBlock) const {
         auto block = std::make_shared<Block>(x, y);
         block->startX = x;
         block->startY = y;
@@ -148,6 +222,7 @@ private:
 
                     if (next == END_MARKER) {
                         target.cost = steps+1;
+                        endBlock = *iter; // we have to remember for the calling funciton what the last block is.
                         return iter; // exit immediately.
                     }
 
@@ -173,14 +248,13 @@ private:
                         });
 
                         if (iterToCache == cache.end()) {
-                            auto newBlock = neoCalcBlock(nx, ny, potentialFacing, cache);
+                            auto newBlock = calcBlock(nx, ny, potentialFacing, cache, endBlock);
                             target.successors.emplace_back(*newBlock);
                         } else {
                             target.successors.emplace_back(*iterToCache);
                         }
 
                     } else { // intersection square
-                        //std::cout << "\tIntersection after " << steps << "\n";
                         if (steps != 1) throw std::logic_error("Intersection square but steps not 1.");
 
                         target.cost = 1;
@@ -199,7 +273,7 @@ private:
                         });
 
                         if (iterToCache == cache.end()) {
-                            auto newBlock = neoCalcBlock(nx, ny, potentialFacing, cache);
+                            auto newBlock = calcBlock(nx, ny, potentialFacing, cache, endBlock);
                             target.successors.emplace_back(*newBlock);
                         } else {
                             target.successors.emplace_back(*iterToCache);
