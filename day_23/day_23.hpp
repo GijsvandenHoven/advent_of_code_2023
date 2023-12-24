@@ -82,7 +82,7 @@ public:
         BlockCache cache;
         std::shared_ptr<Block> finalBlock(nullptr);
         auto iterToStart = calcBlock(x, y + 1, Direction::SOUTH, cache, finalBlock);
-
+        
         // Extend connections to go backwards
         makeBidirectional(*iterToStart);
         std::vector<const Block *> visited;
@@ -104,20 +104,7 @@ private:
     std::pair<int,int> start;
 
     static std::pair<bool, int> calcLongestPathWithCircularDependencies(const Block& here, const Block& end, std::vector<const Block*>& visited) {
-//        std::cout << "1st has these cons: " << first.successors.size() << "\n";
-//        for (auto& s : first.successors) {
-//            std::cout << "\t" << s->startX << ", " << s->startY << " with further sucs \n";
-//            for (auto& ss : s->successors) {
-//                std::cout << "\t\t" << ss->startX << ", " << ss->startY << " with further further sucs \n";
-//                for (auto& sss : ss->successors) {
-//                    std::cout << "\t\t\t" << sss->startX << ", " << sss->startY << ".\n";
-//                }
-//            }
-//        }
-
         // exhaustively depth-first search to find the max size path.
-        std::cout << "Recursively considering " << here.startX << ", " << here.startY << "\n";
-
         if (&here != &end) {
             visited.push_back(&here);
 
