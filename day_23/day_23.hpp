@@ -28,7 +28,7 @@ constexpr char WALL_MARKER = '#';
 constexpr char PATH_MARKER = '.';
 
 std::ostream& operator<<(std::ostream& os, const Block& b) {
-    os << "Block with coords (" << b.startX << ", " << b.startY << ") successors (" << b.successors.size() << "):\n";
+    os << "Block with coords (" << b.startX << ", " << b.startY << ") len (" << b.cost << ") successors (" << b.successors.size() << "):\n";
     for (auto& s : b.successors) {
         std::cout << *s << "\n";
     }
@@ -71,8 +71,16 @@ public:
         auto iterToStart = calcBlock(x, y, Direction::SOUTH, cache);
 
         int longest = calcLongestPath(**iterToStart);
+        std::cout << "ref case " << longest-1 << "\n";
+        cache.clear();
 
-        reportSolution(longest - 1); // off by one, the problem wants "steps" from start, but we calculated number of "dots".
+        BlockCache neoCache;
+        auto iterToNeoStart = neoCalcBlock(x, y + 1, Direction::SOUTH, neoCache);
+        int neoLongest = calcLongestPath(**iterToNeoStart);
+
+        std::cout << **iterToNeoStart << "\n";
+
+        reportSolution(neoLongest);
     }
 
     void v2() const override {
@@ -95,6 +103,137 @@ private:
         }
 
         return first.cost + max;
+    }
+
+    BlockCache::iterator neoCalcBlock(const int x, const int y, const Direction facing, BlockCache& cache) const {
+        auto block = std::make_shared<Block>(x, y);
+        block->startX = x;
+        block->startY = y;
+        auto [iter, success] = cache.emplace(std::move(block));
+        if (! success) throw std::logic_error("Inserting block which already exists. " + std::to_string(x) + ", " + std::to_string(y));
+        auto& target = **iter;
+        int steps = 0; // including the current x, y.
+
+        int cx = x;
+        int cy = y;
+        Direction cfacing = facing;
+        bool pathToWalk = true;
+        while (pathToWalk) {
+            steps++;
+
+            //std::cout << "at " << cx << ", " << cy << "\n";
+            std::array<std::pair<int,int>, 4> options;
+            int count = numberOfPaths(cx, cy, options);
+            for (int i = 0; i < count; ++i) {
+                auto opt = options[i];
+                //std::cout << "option: " << opt.first << ", " << opt.second << "\n";
+            }
+
+            Direction oppositeFacing;
+            switch (cfacing) {
+                case Direction::SOUTH: oppositeFacing = Direction::NORTH; break;
+                case Direction::NORTH: oppositeFacing = Direction::SOUTH; break;
+                case Direction::EAST: oppositeFacing = Direction::WEST; break;
+                case Direction::WEST: oppositeFacing = Direction::EAST; break;
+            }
+
+            int skipThisIndex = 512;
+            for (int i = 0; i < count; ++i) {
+                auto [nx, ny] = options[i];
+                auto nFacing = whatIsFacing(nx, ny, cx, cy);
+
+                if (nFacing == oppositeFacing) skipThisIndex = i;
+            }
+            // banish the skip index to the last index.
+            std::swap(options[count-1], options[skipThisIndex]);
+
+            for (int i = 0; i < count-1; ++i) { // for everything in the valid portion of the array minus the banished element
+                auto [nx, ny] = options[i];
+                char next = grid[ny][nx];
+                //std::cout << "from " << cx << ", " << cy << " try " << nx << ", " << ny << "\n";
+                auto potentialFacing = whatIsFacing(nx, ny, cx, cy);
+
+                if (next != PATH_MARKER) {
+                    pathToWalk = false;
+
+                    if (next == END_MARKER) {
+                        target.cost = steps+1;
+                        return iter; // exit immediately.
+                    }
+
+                    if (count == 2) { // This is the end of a block, we are entering an intersection square.
+                        target.cost = steps + 1;
+                        switch (potentialFacing) { // no need to update facing, it's a straight line to the center dot.
+                            case Direction::NORTH:
+                                --ny;
+                                break;
+                            case Direction::SOUTH:
+                                ++ny;
+                                break;
+                            case Direction::EAST:
+                                ++nx;
+                                break;
+                            case Direction::WEST:
+                                --nx;
+                                break;
+                        }
+
+                        auto iterToCache = std::find_if(cache.begin(), cache.end(), [_x = nx, _y = ny](auto& c){
+                            return c->startX == _x && c->startY == _y;
+                        });
+
+                        if (iterToCache == cache.end()) {
+                            auto newBlock = neoCalcBlock(nx, ny, potentialFacing, cache);
+                            target.successors.emplace_back(*newBlock);
+                        } else {
+                            target.successors.emplace_back(*iterToCache);
+                        }
+
+                        //pathToWalk = false; // end of loop.
+
+                    } else { // intersection square
+                        //std::cout << "\tIntersection after " << steps << "\n";
+                        if (steps != 1) throw std::logic_error("Intersection square but steps not 1.");
+
+                        target.cost = 1;
+
+                        // Is this legal? only if we are facing the same way as the one-way after moving onto it.
+                        switch (next) {
+                            default: throw std::logic_error("not a one-way?");
+                            case 'v': if (potentialFacing != Direction::SOUTH) continue; break;
+                            case '^': if (potentialFacing != Direction::NORTH) continue; break;
+                            case '>': if (potentialFacing != Direction::EAST) continue; break;
+                            case '<': if (potentialFacing != Direction::WEST) continue; break;
+                        }
+
+                        auto iterToCache = std::find_if(cache.begin(), cache.end(), [_x = nx, _y = ny](auto& c){
+                            return c->startX == _x && c->startY == _y;
+                        });
+
+                        if (iterToCache == cache.end()) {
+                            auto newBlock = neoCalcBlock(nx, ny, potentialFacing, cache);
+                            target.successors.emplace_back(*newBlock);
+                        } else {
+                            target.successors.emplace_back(*iterToCache);
+                        }
+
+                        //pathToWalk = false;
+                    }
+                } else {
+                    if (count != 2) throw std::logic_error("Path marker & Option inconsistency.");
+                    // just go to the next spot.
+                    cfacing = potentialFacing;
+                    cx = nx;
+                    cy = ny;
+                }
+            }
+
+            //std::cout << "end of for loop with " << cx << ", " << cy << "\n";
+        }
+
+        //std::cout << "end of while loop with " << cx << ", " << cy << "\n";
+
+        return iter;
     }
 
     /**
@@ -209,11 +348,25 @@ private:
     }
 
     static Direction whatIsFacing(int hereX, int hereY, int lastX, int lastY) {
+
         if (hereX == lastX) { // up or down
             return hereY > lastY ? Direction::SOUTH : Direction::NORTH;
         } else if (hereY == lastY) { // left or right
             return hereX > lastX ? Direction::EAST : Direction::WEST;
         } else throw std::logic_error("Non-cardinal successor");
+    }
+
+    int numberOfPaths(int x, int y, std::array<std::pair<int,int>, 4>& paths) const {
+        const std::array<std::pair<int,int>, 4> adjacent {{ {x-1,y}, {x+1,y}, {x,y+1}, {x,y-1} }};
+        int c = 0;
+        for (auto [nx, ny] : adjacent) {
+            if (grid[ny][nx] != WALL_MARKER) {
+                paths[c] = {nx, ny};
+                c++;
+            }
+        }
+
+        return c;
     }
 };
 
