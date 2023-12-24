@@ -13,7 +13,7 @@ struct Block {
     int startX = 0;
     int startY = 0;
     int cost = 0;
-    std::list<Block> successors;
+    std::list<std::shared_ptr<Block>> successors;
 };
 
 enum class Direction : uint8_t {
@@ -30,12 +30,20 @@ constexpr char PATH_MARKER = '.';
 std::ostream& operator<<(std::ostream& os, const Block& b) {
     os << "Block with coords (" << b.startX << ", " << b.startY << ") successors (" << b.successors.size() << "):\n";
     for (auto& s : b.successors) {
-        std::cout << s << "\n";
+        std::cout << *s << "\n";
     }
     os << "End block " << b.startX << ", " << b.startY << " successor list.";
 
     return os;
 }
+
+struct BlockComparator {
+    bool operator()(const std::shared_ptr<Block>& a, const std::shared_ptr<Block>& b) const {
+        return a->startX < b->startX || (a->startX == b->startX && a->startY < b->startY);
+    }
+};
+
+using BlockCache = std::set<std::shared_ptr<Block>, BlockComparator>;
 
 CLASS_DEF(DAY) {
 public:
@@ -59,10 +67,10 @@ public:
         auto [x, y] = start;
 
         // build blocks
-        Block startBlock {};
-        calcBlock(startBlock, x, y, Direction::SOUTH);
+        BlockCache cache;
+        auto iterToStart = calcBlock(x, y, Direction::SOUTH, cache);
 
-        std::cout << startBlock << "\n";
+        std::cout << **iterToStart << "\n";
 
         reportSolution(0);
     }
@@ -84,11 +92,17 @@ private:
      * ...a direction marker is reached, at which point,
      * Recursively push onto the successor list calls to this function.
      */
-    void calcBlock(Block& target, int x, int y, Direction facing) const {
-        target.startX = x;
-        target.startY = y;
-        int steps = 1; // including the current x, y.
+    BlockCache::iterator calcBlock(int x, int y, Direction facing, BlockCache& cache) const {
         std::cout << "build block " << x << ", " << y << "\n";
+
+        auto block = std::make_shared<Block>(x, y);
+        block->startX = x;
+        block->startY = y;
+        auto [iter, success] = cache.emplace(std::move(block));
+        if (! success) throw std::logic_error("Inserting block which already exists. " + std::to_string(x) + ", " + std::to_string(y));
+        auto& target = **iter;
+
+        int steps = 1; // including the current x, y.
         do {
             auto [nx, ny, nfacing] = successor(x, y, facing);
             x = nx;
@@ -125,10 +139,18 @@ private:
                         case '^': if (possibleFacing == Direction::NORTH) break; else continue;
                     }
 
-                    std::cout << "\trecurse " << px << ", " << py << "\n";
-                    Block succeeding;
-                    calcBlock(succeeding, px, py, possibleFacing);
-                    target.successors.emplace_back(std::move(succeeding));
+                    // We have to add a successor to this block, but does it exist yet?
+                    int _x = px; int _y = py; // openMP can't capture structured bindings. And it won't compile even though there is no OMP?
+                    auto blockToMakeIter = std::find_if(cache.begin(), cache.end(), [_x, _y](auto& c){
+                        return c->startX == _x && c->startY == _y;
+                    });
+                    if (blockToMakeIter != cache.end()) {
+                        std::cout << "CACHE HIT ON " << px << ", " << py << "\n";
+                        target.successors.emplace_back(*blockToMakeIter);
+                    } else {
+                        auto iteratorToNewBlock = calcBlock(px, py, possibleFacing, cache);
+                        target.successors.emplace_back(*iteratorToNewBlock);
+                    }
                 }
 
                 break; // we are done with this block now. We found the intersection square, appended blocks. No more walking fwd to do.
@@ -136,6 +158,9 @@ private:
         } while (grid[y][x] != END_MARKER);
 
         std::cout << "recursion end " << x << ", " << y << "\n";
+
+        // According to documentation, no iterators are invalidated by calls to emplace of std::set so this should be fine.
+        return iter;
     }
 
     std::tuple<int, int, Direction> successor(int x, int y, Direction facing) const {
