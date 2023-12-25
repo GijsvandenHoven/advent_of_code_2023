@@ -9,9 +9,6 @@
 
 NAMESPACE_DEF(DAY) {
 
-constexpr int64_t MAX_CONTIGUOUS_INT_IN_DOUBLE_BITS = std::numeric_limits<double>::digits;
-constexpr int64_t MAX_CONTIGOUOUS_INT_IN_DOUBLE = (1LL << MAX_CONTIGUOUS_INT_IN_DOUBLE_BITS);
-
 struct Object {
     struct R3 { int64_t x; int64_t y; int64_t z; };
 
@@ -159,17 +156,19 @@ private:
         double xref = static_cast<double>(h) + static_cast<double>(g * t2x_int) + (static_cast<double>(g) * t2x_frac); // same value but with t2 on the other line, should equal col_x;
         double yref = static_cast<double>(d) + static_cast<double>(c * t2x_int) + (static_cast<double>(c) * t2x_frac); // same value but with t2 on the other line, should equal col_y;
 
-        if (col_x != xref || col_y != yref) {
-            std::cout << "Beware, dbl mismatch?\n\t " << std::to_string(col_x) << ", " << std::to_string(xref) << ", " << std::to_string(col_y) << ", " << std::to_string(yref) << "\n";
+        bool collides = (
+                              col_x >= static_cast<double>(P1.xlow) &&
+                              col_x <= static_cast<double>(P1.xhigh)
+                      ) && (
+                              col_y >= static_cast<double>(P1.ylow) &&
+                              col_y <= static_cast<double>(P1.yhigh)
+                      );
+
+        if (collides && (col_x != xref || col_y != yref)) {
+            throw std::logic_error(std::to_string(col_x) + ", " + std::to_string(xref) + ", " + std::to_string(col_y) + ", " + std::to_string(yref));
         }
 
-        return (
-                col_x >= static_cast<double>(P1.xlow) &&
-                col_x <= static_cast<double>(P1.xhigh)
-        ) && (
-                col_y >= static_cast<double>(P1.ylow) &&
-                col_y <= static_cast<double>(P1.yhigh)
-        );
+        return collides;
     }
 };
 
