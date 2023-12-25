@@ -108,9 +108,6 @@ private:
      * Some care is taken around casting high values to double (Namely the puzzle works with 100 trillion+ values, and this is close to the 53 bit integer limit of dbls)
      */
     [[nodiscard]] bool testIntersectXY(const Object& obj1, const Object& obj2) const {
-        std::cout << "testing:\n\t"
-            << obj1.start.x << " " << obj1.start.y << " @ " << obj1.delta.x << " " << obj1.delta.y << "\n\t"
-            << obj2.start.x << " " << obj2.start.y << " @ " << obj2.delta.x << " " << obj2.delta.y << "\n";
         // Ay
         int64_t a = obj1.delta.y;
         int64_t b = obj1.start.y;
@@ -127,7 +124,6 @@ private:
         int64_t denominator_1x = g * a - c * e;
         int64_t denominator_2x = c * e - g * a;
         if (denominator_1x == 0) {
-            std::cout << "Parallel.\n";
             return false;
         }
 
@@ -140,14 +136,8 @@ private:
             t1x_int = numerator_1x / denominator_1x;
             int64_t fraction = numerator_1x % denominator_1x; // serves to lower the number by lots. Deltas are low, numerators are not.
             t1x_frac = static_cast<double>(fraction) / static_cast<double>(denominator_1x);
-
-            std::cout << "t1x: " << t1x_int << " + " << t1x_frac << "\n";
         }
-        if (t1x_int < 0) {
-            std::cout << "t1x in the past: " << t1x_int << " + " << t1x_frac << "\n";
-            return false;
-        } else if (t1x_int == 0 && t1x_frac < 0) {
-            std::cout << "!! t1x barely in the past: !! " << t1x_int << " + " << t1x_frac << "\n";
+        if (t1x_int < 0 || (t1x_int == 0 && t1x_frac < 0)) {
             return false;
         }
 
@@ -157,14 +147,8 @@ private:
             t2x_int = numerator_2x / denominator_2x;
             int64_t fraction = numerator_2x % denominator_2x;
             t2x_frac = static_cast<double>(fraction) / static_cast<double>(denominator_2x);
-
-            std::cout << "t2x: " << t2x_int << " + " << t2x_frac << "\n";
         }
-        if (t2x_int < 0) {
-            std::cout << "t2x in the past: " << t2x_int << " + " << t2x_frac << "\n";
-            return false;
-        } else if (t2x_int == 0 && t2x_frac < 0) {
-            std::cout << "!! t2x barely in the past: !! " << t2x_int << " + " << t2x_frac << "\n";
+        if (t2x_int < 0 || (t2x_int == 0 && t2x_frac < 0)) {
             return false;
         }
 
@@ -175,8 +159,10 @@ private:
         double xref = static_cast<double>(h) + static_cast<double>(g * t2x_int) + (static_cast<double>(g) * t2x_frac); // same value but with t2 on the other line, should equal col_x;
         double yref = static_cast<double>(d) + static_cast<double>(c * t2x_int) + (static_cast<double>(c) * t2x_frac); // same value but with t2 on the other line, should equal col_y;
 
-        std::cout << "col (x,y): " << col_x << ", " << col_y << "\n";
-        std::cout << "ref (x,y): " << xref << ", " << yref << "\n";
+        if (col_x != xref || col_y != yref) {
+            std::cout << "Beware, dbl mismatch?\n\t " << std::to_string(col_x) << ", " << std::to_string(xref) << ", " << std::to_string(col_y) << ", " << std::to_string(yref) << "\n";
+        }
+
         return (
                 col_x >= static_cast<double>(P1.xlow) &&
                 col_x <= static_cast<double>(P1.xhigh)
