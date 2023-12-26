@@ -65,6 +65,16 @@ public:
     }
 
     void v2() const override {
+        /**
+         * (define-fun B () Int
+    229429688799267)
+  (define-fun D () Int
+    217160931330282)
+  (define-fun F () Int
+    133453231437025)
+)
+         */
+        std::cout << (229429688799267LL + 217160931330282LL + 133453231437025LL) << "\n";
         reportSolution(P2MakeZ3Model());
     }
 
