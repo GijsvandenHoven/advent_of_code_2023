@@ -65,7 +65,7 @@ public:
     }
 
     void v2() const override {
-        reportSolution(0);
+        reportSolution(P2MakeZ3Model());
     }
 
     void parseBenchReset() override {
@@ -169,6 +169,75 @@ private:
         }
 
         return collides;
+    }
+
+    [[nodiscard]] std::string P2MakeZ3Model () const {
+        std::ostringstream Z3;
+
+        auto DeclareConst = [&Z3](const std::string& _const){
+            Z3 << "(declare-const " << _const << " Int)\n";
+        };
+
+        auto iToTimeVar = [](int i){ return "T" + std::to_string(i); };
+
+        DeclareConst("A");
+        DeclareConst("B");
+        DeclareConst("C");
+        DeclareConst("D");
+        DeclareConst("E");
+        DeclareConst("F");
+        Z3 << "\n"; // just for fun.
+
+        for (int i = 0 ;i < objects.size(); ++i) {
+            DeclareConst(iToTimeVar(i));
+        }
+        Z3 << "\n";
+
+        Z3 << "(assert (and\n";
+        {
+            auto GEQZero = [&Z3](const std::string& variable){
+                Z3 << "(>= " << variable << " 0) ";
+            };
+
+//            GEQZero("A");
+//            GEQZero("B");
+//            GEQZero("C");
+//            GEQZero("D");
+//            GEQZero("E");
+//            GEQZero("F");
+
+            for (int i = 0; i < objects.size(); ++i) {
+                if (i % 3 == 0) Z3 << "\n";
+
+                GEQZero(iToTimeVar(i));
+            }
+
+            Z3 << "\n\n; Linear Equation section\n\n";
+
+            // Assert interesection of line ati+b with general line Ati+B.
+            auto AssertEq = [&Z3](
+                    int64_t a,
+                    int64_t b,
+                    const std::string& timeVar,
+                    const std::string& coefficientVar,
+                    const std::string& offsetVar
+            ){
+                Z3 << "(= (+ " << b << " (* " << a << " "  << timeVar << ")) (+ " << offsetVar << " (* " << coefficientVar << " " << timeVar << ")))\n";
+            };
+            for (int i = 0; i < objects.size(); ++i) {
+                Z3 << "; Object " << i << "\n";
+                auto& obj = objects[i];
+                // For each object there exists 3 linear equations (X,Y,Z) where they must be equal to the general line at their time Ti.
+                AssertEq(obj.delta.x, obj.start.x, iToTimeVar(i), "A", "B");
+                AssertEq(obj.delta.y, obj.start.y, iToTimeVar(i), "C", "D");
+                AssertEq(obj.delta.z, obj.start.z, iToTimeVar(i), "E", "F");
+                Z3 << "\n\n";
+            }
+        }
+        Z3 << "\n))";
+        Z3 << "\n\n(check-sat)\n(get-model)";
+
+        return Z3.str();
     }
 };
 
