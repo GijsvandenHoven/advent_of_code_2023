@@ -49,34 +49,16 @@ public:
         solution_printer("v2: ");
     }
 
-    void benchmark(int sampleCount = 10'000, double reportEveryPct = 0.05) {
-        const double stepSize = sampleCount * reportEveryPct;
-        auto bench = [=](
-                const std::function<void()>& f,
-                BenchmarkStats& s,
-                const std::string& functionName,
-                // resets any values that f needs to be reset. Used for the base class.
-                // This should not be necessary for anything else though. Derived Solvers should NOT mutate state!
-                const std::function<void()>& resetter = [](){}
-        ) {
-            s.reset();
-            s.reserve(sampleCount);
-            double targetForReport = stepSize;
-            std::cout << "[" << functionName << "] Benchmark: ";
-            for (int i = 0; i < sampleCount; ++i) {
-                auto start = chrono::steady_clock::now();
-                f();
-                auto end = chrono::steady_clock::now();
-                s.measurement(end - start);
-                resetter();
+    using StatTriplet = std::array<BenchmarkStats, 3>; // A surprise tool that will help us later.
 
-                if (i == static_cast<int>(targetForReport)) {
-                    auto pct = static_cast<double>(i) / sampleCount;
-                    std::cout << (100 * pct) << "%  ";
-                    targetForReport += stepSize;
-                }
-            }
-            std::cout << "\n";
+    void benchmark(int sampleCount = 10'000, double reportEveryPct = 0.05) {
+        StatTriplet s;
+        benchmark(s, sampleCount, reportEveryPct, true);
+    }
+
+    void benchmark(StatTriplet& outStats, int sampleCount, double reportEveryPct, bool printStats) {
+        auto bench_w_params = [sampleCount, reportEveryPct](auto& func, auto& stats, auto& str, auto& resetFunc){
+            bench(sampleCount, reportEveryPct, func, stats, str, resetFunc);
         };
 
         auto f0 = [this]() { parse(this->text); };
@@ -95,19 +77,26 @@ public:
         };
 
         {
-            bench(f0, parse_stats, "parse", resetParser);
+            bench_w_params(f0, parse_stats, "parse", resetParser);
         }
         {
             // before benchmarking these solvers, parse the text. They need it, or they operate on empty data.
             // Due to immutability, this has to be done only once.
+            // Parse benching resets the parser each time, so we must do it at least once.
             parse(text);
-            bench(f1, v1_stats, "v1", resetSolver);
-            bench(f2, v2_stats, "v2", resetSolver);
+            bench_w_params(f1, v1_stats, "v1", resetSolver);
+            bench_w_params(f2, v2_stats, "v2", resetSolver);
         }
 
-        std::cout << "parse: " << parse_stats << "\n";
-        std::cout << "v1: " << v1_stats << "\n";
-        std::cout << "v2: " << v2_stats << "\n";
+        if (printStats) {
+            std::cout << "parse: " << parse_stats << "\n";
+            std::cout << "v1: " << v1_stats << "\n";
+            std::cout << "v2: " << v2_stats << "\n";
+        }
+
+        outStats[0] = std::move(parse_stats);
+        outStats[1] = std::move(v1_stats);
+        outStats[2] = std::move(v2_stats);
     }
 
     static void setRoot(const std::string& r) {
@@ -120,4 +109,35 @@ private:
     mutable PrinterCallback solution_printer;
 
     static std::filesystem::path root;
+
+    static void bench(
+        int sampleCount,
+        double reportEveryPct,
+        const std::function<void()>& f,
+        BenchmarkStats& s,
+        const std::string& functionName,
+        // resets any values that f needs to be reset. Used for the base class.
+        // This should not be necessary for anything else though. Derived Solvers should NOT mutate state!
+        const std::function<void()>& resetter = [](){}
+    ) {
+        s.reset();
+        s.reserve(sampleCount);
+        const double stepSize = sampleCount * reportEveryPct;
+        double targetForReport = stepSize;
+        std::cout << "[" << functionName << "] Benchmark: ";
+        for (int i = 0; i < sampleCount; ++i) {
+            auto start = chrono::steady_clock::now();
+            f();
+            auto end = chrono::steady_clock::now();
+            s.measurement(end - start);
+            resetter();
+
+            if (i == static_cast<int>(targetForReport)) {
+                auto pct = static_cast<double>(i) / sampleCount;
+                std::cout << (100 * pct) << "%  ";
+                targetForReport += stepSize;
+            }
+        }
+        std::cout << "\n";
+    }
 };

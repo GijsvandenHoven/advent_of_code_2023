@@ -63,14 +63,75 @@ std::map<int, std::function<std::unique_ptr<Day>()>> day_constructor_functions =
         { 25,[](){ return std::make_unique<Day25::Day25>(); } },
 };
 
+int benchEverything() {
+    std::vector<std::array<BenchmarkStats, 3>> stats(day_constructor_functions.size());
+    int defaultSampleSize = 10000;
+    static const std::map<int, int> sampleSizeOverrides {
+            {3, 1000},
+            {4, 5000},
+            {8, 2500},
+            {10, 2500},
+            {12, 250},
+            {14, 1000},
+            {16, 250},
+            {17, 1}, // this one is awfully slow.
+            {19, 2500},
+            {20, 2500},
+            {21, 2500},
+            {22, 1000},
+            {23, 10},
+            {25, 1000}
+    };
+    auto getSampleSize = [defaultSampleSize](int day){
+        auto iter = std::find_if(
+                sampleSizeOverrides.begin(),
+                sampleSizeOverrides.end(),
+                [day](auto& pair){ return pair.first == day; }
+        );
+
+        if (iter != sampleSizeOverrides.end()) {
+            return iter->second;
+        } else return defaultSampleSize;
+    };
+
+    int i = 1;
+    for (auto& [day, ctor] : day_constructor_functions) {
+        // run benchmark with the specified sample count and less reporting on prints, do not cout resulting stat objects.
+        int sampleCount = getSampleSize(day);
+        std::cout << "Day " << day << ". (" << sampleCount << "x)\n";
+        ctor()->benchmark(stats[i-1], sampleCount, 0.10, false);
+        i++;
+    }
+
+    i = 1;
+    for (auto& statblock : stats) {
+        auto& [parse, v1, v2] = statblock;
+        std::cout << "Day " << i << " parse mean (median): " << parse.format(parse.mean()) << " (" << parse.format(parse.median()) << "). Sample Size: " << parse.n_samples() << "\n";
+        std::cout << "Day " << i << " part 1 mean (median): " << v1.format(v1.mean()) << " (" << v1.format(v1.median()) << "). Sample Size: " << v1.n_samples() << "\n";
+        std::cout << "Day " << i << " part 2 mean (median): " << v2.format(v2.mean()) << " (" << v2.format(v2.median()) << "). Sample Size: " << v2.n_samples() << "\n";
+        i++;
+    }
+
+    return static_cast<int>(ExitCodes::OK);
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::cout << "Require input: [rootFolder] [solve|bench] [dayNumber] (bench_sample_size)\n";
+        std::cout << "Require input: [rootFolder] [solve|bench|bench_all] [dayNumber] (bench_sample_size)\n";
         return static_cast<int>(ExitCodes::NO_INPUT);
     }
 
     Day::setRoot(argv[1]);
     std::string mode = argv[2];
+
+    if (mode == "bench_all") {
+        std::cout << "bench all call.\n";
+        return benchEverything();
+    } else if (argc < 4) {
+        std::cout << "Require day number (int)\n";
+        return static_cast<int>(ExitCodes::NO_INPUT);
+    }
+
     int day = std::stoi(argv[3]);
 
     std::cout << mode << " day " << day << "\n";

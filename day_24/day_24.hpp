@@ -7,6 +7,8 @@
 
 #define DAY 24
 
+#define PRINT_Z3_RESULT false
+
 NAMESPACE_DEF(DAY) {
 
 struct Object {
@@ -74,7 +76,9 @@ public:
     133453231437025)
 )
          */ // note: apparently does not work for some other input.txt , unless you use Real instead of Int. But the output is all Integers anyway. ???????????
+#if PRINT_Z3_RESULT
         std::cout << (229429688799267LL + 217160931330282LL + 133453231437025LL) << "\n";
+#endif
         reportSolution(P2MakeZ3Model());
     }
 
@@ -254,3 +258,4 @@ private:
 } // namespace
 
 #undef DAY
+#undef PRINT_Z3_RESULT

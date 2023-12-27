@@ -106,6 +106,7 @@ private:
         return sorted;
     }
 
+    friend int benchEverything();
     // absolute mess of code, it keeps breaking I hate this.
     [[nodiscard]] std::string format(const Time& value) const {
         if (value.count() == 0) { // 0 will result in infinite loops when upgrading/downgrading displayed time unit. Might as well exit early and just say it's zero.
