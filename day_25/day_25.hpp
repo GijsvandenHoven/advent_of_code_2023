@@ -43,11 +43,8 @@ public:
     }
 
     template <size_t N> void getHighestUtilEdge(std::array<std::shared_ptr<Edge>, N>& out) {
-        int iters = 0;
-        std::cout << "iters up to " << this->size() << "\n";
         for (auto& [_, n] : *this) {
             BFSWithEdgeUtil(n);
-            std::cout << iters++ << ", ";
         }
 
         std::set<std::shared_ptr<Edge>> edges;
@@ -62,10 +59,10 @@ public:
             return a->util < b->util;
         });
 
-        std::cout << "sort result\n";
-        for (auto& e : sortedByEdgeUtil) {
-            std::cout << *e << "\n";
-        }
+//        std::cout << "sort result\n";
+//        for (auto& e : sortedByEdgeUtil) {
+//            std::cout << *e << "\n";
+//        }
 
         for (int i = 0; i < N; ++i) {
             int index = static_cast<int>(sortedByEdgeUtil.size()) - 1 - i;
@@ -91,7 +88,7 @@ public:
         std::cout << "Erased edges at " << eraseCount << " nodes\n";
     }
 
-    [[nodiscard]] static std::pair<int,int> BFSClusterSize(
+    [[nodiscard]] std::pair<int,int> BFSClusterSize(
             const std::shared_ptr<Node>& cluster1,
             const std::shared_ptr<Node>& cluster2
     ) {
@@ -119,7 +116,7 @@ public:
         int a = BFS(cluster1.get());
         int b = BFS(cluster2.get());
 
-        std::cout << "a: " << a << " b: " << b << "\n";
+        if (a + b != this->size()) throw std::logic_error("This graph is currently not a 2-cluster.");
         return {a, b};
     }
 
@@ -226,13 +223,13 @@ public:
         std::array<std::shared_ptr<Edge>, 3> mostUsed;
         g.getHighestUtilEdge(mostUsed);
         g.removeEdges(mostUsed.begin(), mostUsed.end());
-        auto [a, b] = Graph::BFSClusterSize(mostUsed[0]->a, mostUsed[0]->b);
+        auto [a, b] = g.BFSClusterSize(mostUsed[0]->a, mostUsed[0]->b);
 
         reportSolution(a * b);
     }
 
     void v2() const override {
-        reportSolution(0);
+        reportSolution("*Virtually pushes the button to get star 50*");
     }
 
     void parseBenchReset() override {
