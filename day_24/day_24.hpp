@@ -73,7 +73,7 @@ public:
   (define-fun F () Int
     133453231437025)
 )
-         */
+         */ // note: apparently does not work for some other input.txt , unless you use Real instead of Int. But the output is all Integers anyway. ???????????
         std::cout << (229429688799267LL + 217160931330282LL + 133453231437025LL) << "\n";
         reportSolution(P2MakeZ3Model());
     }
