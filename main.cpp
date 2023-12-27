@@ -80,7 +80,7 @@ int benchEverything() {
             {21, 2500},
             {22, 1000},
             {23, 10},
-            {25, 1000}
+            {25, 500}
     };
     auto getSampleSize = [defaultSampleSize](int day){
         auto iter = std::find_if(
