@@ -84,8 +84,6 @@ public:
             }
             ++iterBegin;
         }
-
-        std::cout << "Erased edges at " << eraseCount << " nodes\n";
     }
 
     [[nodiscard]] std::pair<int,int> BFSClusterSize(
