@@ -230,14 +230,14 @@ public:
             auto& c = iter->outputConnections;
             if (c.end() != std::find_if(c.begin(), c.end(), [](auto& label){ return label == P2_OUTPUT_NAME; })) {
                 if (outputIter != moduleBlueprint.end()) { // this case does not exist in the puzzle input.
-                    throw std::logic_error("Expected exactly one module connected to " + P2_OUTPUT_NAME + ", found multiple.");
+                    throw std::logic_error("Expected exactly one module connected to " + std::string(P2_OUTPUT_NAME) + ", found multiple.");
                 } else {
                     outputIter = iter;
                 }
             }
         }
 
-        if (outputIter == moduleBlueprint.end()) throw std::logic_error("Could not find module connected to '" + P2_OUTPUT_NAME + "'.");
+        if (outputIter == moduleBlueprint.end()) throw std::logic_error("Could not find module connected to '" + std::string(P2_OUTPUT_NAME) + "'.");
         if (outputIter->t != ModuleType::CONJUNCT) throw std::logic_error("Expected the connected-to-output Module to be a ConjunctModule");
 
         // find the modules that connect to the output-connecting-node.
@@ -285,8 +285,8 @@ private:
     // Solvers should make copies of this object; This is to allow repeatability during benchmarking,
     // And disallow interference of subsequent solvers.
     std::vector<ModuleBlueprint> moduleBlueprint;
-    static constexpr std::string BROADCASTER_NAME = "broadcaster";
-    static constexpr std::string P2_OUTPUT_NAME = "rx";
+    static constexpr auto BROADCASTER_NAME = "broadcaster";
+    static constexpr auto P2_OUTPUT_NAME = "rx";
 
     // very hairy code due to the use of pointers in member variables of Module.
     void createFromBlueprint(std::vector<std::unique_ptr<Module>>& modules) const {

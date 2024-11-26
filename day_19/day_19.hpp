@@ -206,9 +206,9 @@ private:
     // problem 2
     std::map<std::string, std::vector<Rule>> rules;
 
-    static constexpr std::string ACCEPT_LABEL = "A";
-    static constexpr std::string REJECT_LABEL = "R";
-    static constexpr std::string ENTRY_LABEL = "in";
+    static constexpr auto ACCEPT_LABEL = "A";
+    static constexpr auto REJECT_LABEL = "R";
+    static constexpr auto ENTRY_LABEL = "in";
 
     Functor accept = [](auto& ow){ ow.state = ObjectWrapper::State::ACCEPTED; return std::make_pair(false, ACCEPT_LABEL); };
     Functor reject = [](auto& ow){ ow.state = ObjectWrapper::State::REJECTED; return std::make_pair(false, REJECT_LABEL); };
